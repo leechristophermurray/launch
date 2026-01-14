@@ -6,7 +6,6 @@ use gtk4::{
 use std::sync::Arc;
 use crate::application::use_cases::search_apps::SearchApps;
 use crate::application::use_cases::execute_command::ExecuteCommand;
-use crate::domain::model::App;
 
 // UI Dependencies wrapper
 #[derive(Clone)]
@@ -72,9 +71,12 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
     list_box.set_visible(false); // Hidden initially
     main_box.append(&list_box);
 
+    let current_cmds = std::rc::Rc::new(std::cell::RefCell::new(Vec::<String>::new()));
+
     let ctx_clone = ctx.clone();
     let list_box_clone = list_box.clone();
     let window_clone = window.clone();
+    let cmds_clone = current_cmds.clone();
 
     // On text change -> search
     entry.connect_changed(move |e| {
@@ -84,6 +86,8 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
         while let Some(child) = list_box_clone.first_child() {
             list_box_clone.remove(&child);
         }
+        
+        cmds_clone.borrow_mut().clear();
 
         if query.is_empty() {
             list_box_clone.set_visible(false);
@@ -97,12 +101,27 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
              list_box_clone.set_visible(false);
         } else {
              list_box_clone.set_visible(true);
-             for app in results.iter().take(5) { // Show top 5
+             let mut cmds = cmds_clone.borrow_mut();
+             
+             for app in results.iter().take(9) { // Show top 9 to match Ctrl+1-9
                  let row = ListBoxRow::new();
+                 let row_box = gtk4::Box::new(Orientation::Horizontal, 10);
+                 
+                 // Icon
+                 if let Some(icon_str) = &app.icon {
+                    let image = gtk4::Image::new();
+                    // Check if it's a path or icon name
+                    if std::path::Path::new(icon_str).exists() {
+                        image.set_from_file(Some(icon_str));
+                    } else {
+                        image.set_icon_name(Some(icon_str));
+                    }
+                    image.set_pixel_size(24);
+                    row_box.append(&image);
+                 }
+
                  let label = Label::new(Some(&app.name));
                  label.set_halign(gtk4::Align::Start);
-                 label.set_margin_start(10);
-                 label.set_margin_end(10);
                  label.set_margin_top(5);
                  label.set_margin_bottom(5);
                  
@@ -110,12 +129,16 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
                     label.add_css_class("running-app");
                  }
 
-                 row.set_child(Some(&label));
-                 
-                 // Store exec path in widget data? 
-                 // Or just keep index. Simpler to assume top selection.
+                 row_box.append(&label);
+                 row.set_child(Some(&row_box));
                  
                  list_box_clone.append(&row);
+                 cmds.push(app.exec_path.clone());
+             }
+             
+             // Select first row strictly
+             if let Some(row) = list_box_clone.row_at_index(0) {
+                 list_box_clone.select_row(Some(&row));
              }
         }
     });
@@ -123,37 +146,79 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
     let ctx_clone_exec = ctx.clone();
     let list_box_exec = list_box.clone();
     let window_exec = window.clone();
+    let cmds_exec = current_cmds.clone();
     
-    // On Enter -> Execute
+    // On Enter -> Execute Selected
     entry.connect_activate(move |e| {
-        let query = e.text();
-        // If list has selection, use that.
-        // Else use first item. 
-        // For simplicity, let's just re-run search or grab top item from logic.
-        // Ideally we track the selected item in the listbox.
-        
-        let results = ctx_clone_exec.search_apps.execute(&query);
-        if let Some(top_app) = results.first() {
-             ctx_clone_exec.execute_command.execute(&top_app.exec_path);
-             // Clear, close, or minimize
-             e.set_text("");
-             window_exec.minimize(); 
-             // Or actually just hide? GTK4 window close usually kills app if it's the only one.
-             // window_exec.close(); 
+        if let Some(row) = list_box_exec.selected_row() {
+            let idx = row.index() as usize;
+            let cmds = cmds_exec.borrow();
+            if let Some(cmd) = cmds.get(idx) {
+                ctx_clone_exec.execute_command.execute(cmd);
+                e.set_text("");
+                window_exec.minimize();
+            }
         }
     });
     
-    // Key press for Escape -> Close
+    // Key Controller on Entry to handle navigation and shortcuts
     let controller = gtk4::EventControllerKey::new();
-    let win_clone_key = window.clone();
-    controller.connect_key_pressed(move |_, key, _, _| {
-         if key == gtk4::gdk::Key::Escape {
-             win_clone_key.close();
+    let list_box_key = list_box.clone();
+    let cmds_key = current_cmds.clone();
+    let ctx_key_exec = ctx.clone();
+    let win_key = window.clone();
+    let entry_key = entry.clone();
+
+    controller.connect_key_pressed(move |_, key, _keycode, state| {
+        if key == gtk4::gdk::Key::Escape {
+             win_key.close();
              return gtk4::glib::Propagation::Stop;
-         }
-         gtk4::glib::Propagation::Proceed
+        }
+        
+        if key == gtk4::gdk::Key::Up {
+             if let Some(row) = list_box_key.selected_row() {
+                 let cur_idx = row.index();
+                 if cur_idx > 0 {
+                     if let Some(prev) = list_box_key.row_at_index(cur_idx - 1) {
+                         list_box_key.select_row(Some(&prev));
+                     }
+                 }
+             }
+             return gtk4::glib::Propagation::Stop;
+        }
+        
+        if key == gtk4::gdk::Key::Down {
+             let cur_idx = list_box_key.selected_row().map(|r| r.index()).unwrap_or(-1);
+             // We don't verify max size easily here without querying children count, 
+             // but `row_at_index` returns None if out of bounds.
+             if let Some(next) = list_box_key.row_at_index(cur_idx + 1) {
+                 list_box_key.select_row(Some(&next));
+             }
+             return gtk4::glib::Propagation::Stop;
+        }
+
+        // Ctrl + 1..9
+        if state.contains(gtk4::gdk::ModifierType::CONTROL_MASK) {
+             let key_val = key.to_unicode(); // char
+             if let Some(c) = key_val {
+                 if let Some(digit) = c.to_digit(10) {
+                     if digit >= 1 && digit <= 9 {
+                         let idx = (digit - 1) as usize;
+                         let cmds = cmds_key.borrow();
+                         if let Some(cmd) = cmds.get(idx) {
+                             ctx_key_exec.execute_command.execute(cmd);
+                             entry_key.set_text("");
+                             win_key.minimize();
+                             return gtk4::glib::Propagation::Stop;
+                         }
+                     }
+                 }
+             }
+        }
+
+        gtk4::glib::Propagation::Proceed
     });
-    window.add_controller(controller);
+    entry.add_controller(controller);
 
     window.present();
 }
