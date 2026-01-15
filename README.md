@@ -2,7 +2,8 @@
 
 A sleek, pill-shaped application launcher for Linux, built with Rust and GTK4. Designed with strict adherence to "Tree Architecture" for stability and maintainability.
 
-![Concept](https://via.placeholder.com/600x100?text=Launch+Pill+UI+Concept)
+
+![AppSearch](docs/images/screenshots/app_search.png)
 
 ## Features
 
@@ -21,16 +22,25 @@ A sleek, pill-shaped application launcher for Linux, built with Rust and GTK4. D
 ## Advanced Usage
 
 ### ⚙️ Settings
+
+![SearchSettings](docs/images/screenshots/search_settings.png)
+
 Type `l ` (lower case L followed by space) to access internal settings:
 -   **About Launch**: View version and copyright information.
 -   **Quit**: Exit the application.
 
 ### ⌨️ Terminal Execution
+
+![SearchSettings](docs/images/screenshots/command_launch.png)
+
 Type `ss ` (double s followed by space) to immediately execute a shell command in a terminal.
 -   Example: `ss top` opens `btop`/`top` in a new terminal window.
 -   Supported terminals: `gnome-terminal`, `ptyxis`, `x-terminal-emulator`.
 
 ### 📂 File Browser
+
+![FolderWalk](docs/images/screenshots/folder_walk.png)
+
 Type `f ` (lower case F followed by space) to browse the filesystem.
 -   Start typing a path (e.g., `f /home`) to filter.
 -   Use `Right Arrow` to enter directories.
