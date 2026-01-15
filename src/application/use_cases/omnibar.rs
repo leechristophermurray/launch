@@ -8,8 +8,8 @@ pub struct Omnibar {
     app_repo: Arc<dyn IAppRepository + Send + Sync>,
     process_monitor: Arc<dyn IProcessMonitor + Send + Sync>,
     fs: Arc<dyn IFileSystem + Send + Sync>,
-    shortcuts: Arc<dyn IShortcutRepository + Send + Sync>,
-    macros: Arc<dyn IMacroRepository + Send + Sync>,
+    pub shortcuts: Arc<dyn IShortcutRepository + Send + Sync>,
+    pub macros: Arc<dyn IMacroRepository + Send + Sync>,
     power: Arc<dyn ISystemPower + Send + Sync>,
     calculator: Arc<dyn ICalculator + Send + Sync>,
 }

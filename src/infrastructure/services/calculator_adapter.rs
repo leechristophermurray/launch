@@ -10,26 +10,27 @@ impl MevalCalculatorAdapter {
     
     fn preprocess_latex(&self, expression: &str) -> String {
         let mut expr = expression.to_string();
-        // Replace common latex patterns with standard math
-        // \sqrt{x} -> sqrt(x)
-        // \frac{a}{b} -> (a)/(b)
-        // ^ -> ^ (meval supports ^)
-        // \cdot -> *
-        // \times -> *
         
+        // Basic Replacements
         expr = expr.replace("\\cdot", "*")
             .replace("\\times", "*")
             .replace("\\left(", "(")
             .replace("\\right)", ")");
-            
-        // Simple regex replace for sqrt
-        // Note: Nested braces might fail with simple regex, but basic support:
-        // \sqrt{123}
-        // This is a naive implementation
+
+        // Regex Replacements
+        // \sqrt{...} -> sqrt(...)
+        let sqrt_re = regex::Regex::new(r"\\sqrt\{([^}]+)\}").unwrap();
+        expr = sqrt_re.replace_all(&expr, "sqrt($1)").to_string();
         
-        // Handling \frac{...}{...} is hard with regex due to nested braces.
-        // For now, let's just handle simple substitutions.
+        // \frac{a}{b} -> (a)/(b)
+        let frac_re = regex::Regex::new(r"\\frac\{([^}]+)\}\{([^}]+)\}").unwrap();
+        expr = frac_re.replace_all(&expr, "($1)/($2)").to_string();
         
+        // x^{y} -> x^(y) 
+        // Note: meval often supports ^, but just in case
+        let pow_re = regex::Regex::new(r"\^\{([^}]+)\}").unwrap();
+        expr = pow_re.replace_all(&expr, "^($1)").to_string();
+
         expr
     }
 }
@@ -41,5 +42,21 @@ impl ICalculator for MevalCalculatorAdapter {
             Ok(val) => Some(val.to_string()),
             Err(_) => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_latex_preprocessing() {
+        let adapter = MevalCalculatorAdapter::new();
+        
+        assert_eq!(adapter.preprocess_latex(r"\sqrt{16}"), "sqrt(16)");
+        assert_eq!(adapter.preprocess_latex(r"\frac{1}{2}"), "(1)/(2)");
+        assert_eq!(adapter.preprocess_latex(r"2 \times 3"), "2 * 3");
+        assert_eq!(adapter.preprocess_latex(r"2^{3}"), "2^(3)");
+        assert_eq!(adapter.preprocess_latex(r"\sqrt{9} + \frac{4}{2}"), "sqrt(9) + (4)/(2)");
     }
 }

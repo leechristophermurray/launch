@@ -1,7 +1,8 @@
 use gtk4::prelude::*;
 use gtk4::{
     Application, ApplicationWindow, CssProvider, Entry, ListBox, 
-    ListBoxRow, Label, Orientation, StyleContext, gdk
+    ListBoxRow, Label, Orientation, StyleContext, gdk, Notebook,
+    TextView, TextBuffer, Button, ScrolledWindow, Window
 };
 use std::sync::Arc;
 use crate::application::use_cases::omnibar::Omnibar;
@@ -174,7 +175,7 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
                     } else if cmd == "internal:about" {
                         show_about_dialog(&window_exec);
                     } else if cmd == "internal:settings" {
-                        show_settings_dialog(&window_exec);
+                        show_settings_dialog(&window_exec, &ctx_clone_exec);
                     }
                 } else {
                     ctx_clone_exec.execute_command.execute(&cmd);
@@ -335,28 +336,365 @@ fn show_about_dialog(window: &ApplicationWindow) {
     dialog.present();
 }
 
-fn show_settings_dialog(window: &ApplicationWindow) {
-    let dialog = gtk4::Window::builder()
-        .transient_for(window)
+fn show_add_shortcut_dialog(
+    parent: &gtk4::Window, 
+    ctx: &AppContext, 
+    on_success: impl Fn() + 'static
+) {
+    let dialog = Window::builder()
+        .transient_for(parent)
         .modal(true)
-        .title("Settings")
+        .title("Add Shortcut")
+        .default_width(300)
+        .default_height(150)
+        .build();
+    
+    let vbox = gtk4::Box::new(Orientation::Vertical, 10);
+    vbox.set_margin_top(10);
+    vbox.set_margin_bottom(10);
+    vbox.set_margin_start(10);
+    vbox.set_margin_end(10);
+    
+    let key_entry = Entry::new();
+    key_entry.set_placeholder_text(Some("Key (e.g. 'term')"));
+    
+    let cmd_entry = Entry::new();
+    cmd_entry.set_placeholder_text(Some("Command (e.g. 'gnome-terminal')"));
+    
+    let btn_box = gtk4::Box::new(Orientation::Horizontal, 10);
+    let save_btn = Button::with_label("Save");
+    let cancel_btn = Button::with_label("Cancel");
+    
+    btn_box.append(&save_btn);
+    btn_box.append(&cancel_btn);
+    
+    vbox.append(&Label::new(Some("Shortcut Key:")));
+    vbox.append(&key_entry);
+    vbox.append(&Label::new(Some("Command:")));
+    vbox.append(&cmd_entry);
+    vbox.append(&btn_box);
+    
+    dialog.set_child(Some(&vbox));
+    
+    let dialog_weak = dialog.downgrade();
+    cancel_btn.connect_clicked(move |_| {
+        if let Some(d) = dialog_weak.upgrade() { d.close(); }
+    });
+    
+    let ctx_clone = ctx.clone();
+    let dialog_weak_save = dialog.downgrade();
+    let key_entry_clone = key_entry.clone();
+    let cmd_entry_clone = cmd_entry.clone();
+    
+    save_btn.connect_clicked(move |_| {
+        let key = key_entry_clone.text().to_string();
+        let cmd = cmd_entry_clone.text().to_string();
+        
+        if !key.is_empty() && !cmd.is_empty() {
+             // Add to repo
+             if let Err(e) = ctx_clone.omnibar.shortcuts.add(key, cmd) {
+                 println!("Error adding shortcut: {}", e);
+             } else {
+                 on_success();
+                 if let Some(d) = dialog_weak_save.upgrade() { d.close(); }
+             }
+        }
+    });
+
+    dialog.present();
+}
+
+use crate::domain::model::Macro;
+fn show_add_macro_dialog(
+    parent: &gtk4::Window,
+    ctx: &AppContext,
+    on_success: impl Fn() + 'static
+) {
+    let dialog = Window::builder()
+        .transient_for(parent)
+        .modal(true)
+        .title("Add Macro")
         .default_width(400)
         .default_height(300)
         .build();
     
-    let box_container = gtk4::Box::new(Orientation::Vertical, 10);
-    box_container.set_margin_top(20);
-    box_container.set_margin_bottom(20);
-    box_container.set_margin_start(20);
-    box_container.set_margin_end(20);
+    let vbox = gtk4::Box::new(Orientation::Vertical, 10);
+    vbox.set_margin_top(10);
+    vbox.set_margin_bottom(10);
+    vbox.set_margin_start(10);
+    vbox.set_margin_end(10);
+    
+    let name_entry = Entry::new();
+    name_entry.set_placeholder_text(Some("Macro Name (e.g. 'dev-setup')"));
+    
+    let buffer = TextBuffer::new(None);
+    let text_view = TextView::with_buffer(&buffer);
+    text_view.set_vexpand(true);
+    let sc = ScrolledWindow::builder()
+        .child(&text_view)
+        .min_content_height(150)
+        .build();
+    
+    let btn_box = gtk4::Box::new(Orientation::Horizontal, 10);
+    let save_btn = Button::with_label("Save");
+    let cancel_btn = Button::with_label("Cancel");
+    
+    btn_box.append(&save_btn);
+    btn_box.append(&cancel_btn);
 
-    let label = Label::new(Some("Settings Placeholder"));
-    label.add_css_class("title-1");
-    box_container.append(&label);
+    vbox.append(&Label::new(Some("Macro Name:")));
+    vbox.append(&name_entry);
+    vbox.append(&Label::new(Some("Actions (One command per line):")));
+    vbox.append(&sc);
+    vbox.append(&btn_box);
+    
+    dialog.set_child(Some(&vbox));
 
-    let info = Label::new(Some("Edit JSON at ~/.config/launch/settings.json"));
-    box_container.append(&info);
+    let dialog_weak = dialog.downgrade();
+    cancel_btn.connect_clicked(move |_| {
+        if let Some(d) = dialog_weak.upgrade() { d.close(); }
+    });
+    
+    let ctx_clone = ctx.clone();
+    let dialog_weak_save = dialog.downgrade();
+    let name_entry_clone = name_entry.clone();
+    
+    save_btn.connect_clicked(move |_| {
+        let name = name_entry_clone.text().to_string();
+        let (start, end) = buffer.bounds();
+        let text = buffer.text(&start, &end, false).to_string();
+        
+        let actions: Vec<String> = text.lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect();
 
-    dialog.set_child(Some(&box_container));
+        if !name.is_empty() && !actions.is_empty() {
+             let new_macro = Macro { name: name, actions: actions };
+             if let Err(e) = ctx_clone.omnibar.macros.add(new_macro) {
+                 println!("Error adding macro: {}", e);
+             } else {
+                 on_success();
+                 if let Some(d) = dialog_weak_save.upgrade() { d.close(); }
+             }
+        }
+    });
+
+    dialog.present();
+}
+
+fn show_settings_dialog(window: &ApplicationWindow, ctx: &AppContext) {
+    let dialog = gtk4::Window::builder()
+        .transient_for(window)
+        .modal(true)
+        .title("Settings")
+        .default_width(600)
+        .default_height(500)
+        .build();
+    
+    let notebook = Notebook::new();
+    
+    // TAB 1: SHORTCUTS
+    let shortcuts_box = gtk4::Box::new(Orientation::Vertical, 10);
+    shortcuts_box.set_margin_top(10);
+    shortcuts_box.set_margin_bottom(10);
+    shortcuts_box.set_margin_start(10);
+    shortcuts_box.set_margin_end(10);
+    
+    let sc_list = ListBox::new();
+    sc_list.set_selection_mode(gtk4::SelectionMode::Single);
+    sc_list.add_css_class("boxed-list"); 
+    sc_list.set_vexpand(true);
+    
+    let sc_scroll = ScrolledWindow::builder()
+        .hscrollbar_policy(gtk4::PolicyType::Never)
+        .min_content_height(300)
+        .child(&sc_list)
+        .build();
+    shortcuts_box.append(&sc_scroll);
+    
+    // Logic to populate shortcuts
+    let ctx_refresh_sc = ctx.clone();
+    let sc_list_refresh = sc_list.clone();
+    let refresh_shortcuts = std::rc::Rc::new(move || {
+        // Clear
+        while let Some(child) = sc_list_refresh.first_child() {
+            sc_list_refresh.remove(&child);
+        }
+        // Populate
+        let shortcuts = ctx_refresh_sc.omnibar.shortcuts.get_all();
+        // Sort keys
+        let mut sorted_keys: Vec<_> = shortcuts.keys().cloned().collect();
+        sorted_keys.sort();
+        
+        for key in sorted_keys {
+             if let Some(cmd) = shortcuts.get(&key) {
+                let row = ListBoxRow::new();
+                let hbox = gtk4::Box::new(Orientation::Horizontal, 10);
+                hbox.set_margin_start(10);
+                hbox.set_margin_end(10);
+                hbox.set_margin_top(5);
+                hbox.set_margin_bottom(5);
+                
+                let key_lbl = Label::new(Some(&key));
+                key_lbl.add_css_class("heading");
+                key_lbl.set_hexpand(true);
+                key_lbl.set_halign(gtk4::Align::Start);
+                
+                let cmd_lbl = Label::new(Some(cmd));
+                cmd_lbl.add_css_class("dim-label");
+                
+                hbox.append(&key_lbl);
+                hbox.append(&cmd_lbl);
+                
+                // Store Key in row data via name? 
+                // We need to identify the row for deletion. 
+                // ListBoxRow doesn't hold data easily without subclassing or using set_widget_name (hacky but works)
+                row.set_widget_name(&key);
+                
+                row.set_child(Some(&hbox));
+                sc_list_refresh.append(&row);
+             }
+        }
+    });
+
+    // Initial load
+    refresh_shortcuts();
+
+    // Buttons
+    let sc_actions = gtk4::Box::new(Orientation::Horizontal, 10);
+    let add_sc_btn = gtk4::Button::with_label("Add");
+    let del_sc_btn = gtk4::Button::with_label("Delete");
+    sc_actions.append(&add_sc_btn);
+    sc_actions.append(&del_sc_btn);
+    shortcuts_box.append(&sc_actions);
+    
+    let ctx_clone_add_sc = ctx.clone();
+    let dialog_weak_sc = dialog.downgrade();
+    let refresh_sc_clone_add = refresh_shortcuts.clone();
+    
+    add_sc_btn.connect_clicked(move |_| {
+        if let Some(parent) = dialog_weak_sc.upgrade() {
+            let refresh = refresh_sc_clone_add.clone();
+            show_add_shortcut_dialog(&parent, &ctx_clone_add_sc, move || {
+                refresh();
+            });
+        }
+    });
+
+    let sc_list_del = sc_list.clone();
+    let ctx_clone_del_sc = ctx.clone();
+    let refresh_sc_clone_del = refresh_shortcuts.clone();
+    
+    del_sc_btn.connect_clicked(move |_| {
+        if let Some(row) = sc_list_del.selected_row() {
+            let key = row.widget_name().to_string();
+            if !key.is_empty() {
+                if let Err(e) = ctx_clone_del_sc.omnibar.shortcuts.remove(&key) {
+                    println!("Error removing shortcut: {}", e);
+                } else {
+                    refresh_sc_clone_del();
+                }
+            }
+        }
+    });
+
+    notebook.append_page(&shortcuts_box, Some(&Label::new(Some("Shortcuts"))));
+
+    // TAB 2: MACROS
+    let macros_box = gtk4::Box::new(Orientation::Vertical, 10);
+    macros_box.set_margin_top(10);
+    macros_box.set_margin_bottom(10);
+    macros_box.set_margin_start(10);
+    macros_box.set_margin_end(10);
+    
+    let mac_list = ListBox::new();
+    mac_list.set_selection_mode(gtk4::SelectionMode::Single);
+    mac_list.add_css_class("boxed-list"); 
+    mac_list.set_vexpand(true);
+
+    let mac_scroll = ScrolledWindow::builder()
+        .hscrollbar_policy(gtk4::PolicyType::Never)
+        .min_content_height(300)
+        .child(&mac_list)
+        .build();
+    macros_box.append(&mac_scroll);
+    
+    // Logic to populate macros
+    let ctx_refresh_mac = ctx.clone();
+    let mac_list_refresh = mac_list.clone();
+    let refresh_macros = std::rc::Rc::new(move || {
+        while let Some(child) = mac_list_refresh.first_child() {
+            mac_list_refresh.remove(&child);
+        }
+        let macros = ctx_refresh_mac.omnibar.macros.get_all();
+        // Sort? macros is Vec, already order from storage probably.
+        for mac in macros {
+            let row = ListBoxRow::new();
+            let hbox = gtk4::Box::new(Orientation::Horizontal, 10);
+            hbox.set_margin_start(10);
+            hbox.set_margin_end(10);
+            hbox.set_margin_top(5);
+            hbox.set_margin_bottom(5);
+            
+            let name_label = Label::new(Some(&mac.name));
+            name_label.add_css_class("heading");
+            name_label.set_hexpand(true);
+            name_label.set_halign(gtk4::Align::Start);
+            
+            let count_label = Label::new(Some(&format!("{} actions", mac.actions.len())));
+            count_label.add_css_class("dim-label");
+            
+            hbox.append(&name_label);
+            hbox.append(&count_label);
+            
+            row.set_widget_name(&mac.name);
+            row.set_child(Some(&hbox));
+            mac_list_refresh.append(&row);
+        }
+    });
+
+    refresh_macros();
+    
+    let mac_actions = gtk4::Box::new(Orientation::Horizontal, 10);
+    let add_mac_btn = gtk4::Button::with_label("Add");
+    let del_mac_btn = gtk4::Button::with_label("Delete");
+    mac_actions.append(&add_mac_btn);
+    mac_actions.append(&del_mac_btn);
+    macros_box.append(&mac_actions);
+
+    let ctx_clone_add_mac = ctx.clone();
+    let dialog_weak_mac = dialog.downgrade();
+    let refresh_mac_clone_add = refresh_macros.clone();
+
+    add_mac_btn.connect_clicked(move |_| {
+         if let Some(parent) = dialog_weak_mac.upgrade() {
+            let refresh = refresh_mac_clone_add.clone();
+            show_add_macro_dialog(&parent, &ctx_clone_add_mac, move || {
+                refresh();
+            });
+         }
+    });
+
+    let mac_list_del = mac_list.clone();
+    let ctx_clone_del_mac = ctx.clone();
+    let refresh_mac_clone_del = refresh_macros.clone();
+
+    del_mac_btn.connect_clicked(move |_| {
+         if let Some(row) = mac_list_del.selected_row() {
+            let name = row.widget_name().to_string();
+            if !name.is_empty() {
+                if let Err(e) = ctx_clone_del_mac.omnibar.macros.remove(&name) {
+                     println!("Error removing macro: {}", e);
+                } else {
+                     refresh_mac_clone_del();
+                }
+            }
+         }
+    });
+
+    notebook.append_page(&macros_box, Some(&Label::new(Some("Macros"))));
+
+    dialog.set_child(Some(&notebook));
     dialog.present();
 }
