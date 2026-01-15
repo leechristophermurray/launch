@@ -36,7 +36,8 @@ fn main() {
         .build();
 
     app.connect_activate(move |app| {
-        if let Some(window) = app.active_window() {
+        // Check if ANY window exists, not just the currently focused/active one.
+        if let Some(window) = app.windows().first() {
             window.present();
         } else {
             build_ui(app, ctx.clone());

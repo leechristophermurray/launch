@@ -21,6 +21,7 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
         .default_width(600)
         .default_height(50) // Starts small
         .decorated(false) // Pill shape requirement
+        .resizable(false)
         .build();
 
     // CSS
