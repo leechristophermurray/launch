@@ -221,15 +221,7 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
                     if cmd == "internal:quit" {
                         window_exec.close();
                     } else if cmd == "internal:about" {
-                        let dialog = gtk4::MessageDialog::builder()
-                            .transient_for(&window_exec)
-                            .modal(true)
-                            .buttons(gtk4::ButtonsType::Ok)
-                            .text("Launch")
-                            .secondary_text("A pill-shaped launcher.\nVersion 0.1.0\n(c) 2026")
-                            .build();
-                        dialog.connect_response(|d, _| d.close());
-                        dialog.present();
+                        show_about_dialog(&window_exec);
                     }
                 } else {
                     ctx_clone_exec.execute_command.execute(&cmd);
@@ -292,15 +284,7 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
                                 if cmd == "internal:quit" {
                                     win_key.close();
                                 } else if cmd == "internal:about" {
-                                    let dialog = gtk4::MessageDialog::builder()
-                                        .transient_for(&win_key)
-                                        .modal(true)
-                                        .buttons(gtk4::ButtonsType::Ok)
-                                        .text("Launch")
-                                        .secondary_text("A pill-shaped launcher.\nVersion 0.1.0\n(c) 2026")
-                                        .build();
-                                    dialog.connect_response(|d, _| d.close());
-                                    dialog.present();
+                                    show_about_dialog(&win_key);
                                 }
                              } else {
                                  ctx_key_exec.execute_command.execute(&cmd);
@@ -318,5 +302,22 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
     });
     entry.add_controller(controller);
 
+
     window.present();
+}
+
+fn show_about_dialog(window: &ApplicationWindow) {
+    let dialog = gtk4::AboutDialog::builder()
+        .transient_for(window)
+        .modal(true)
+        .program_name("Launch")
+        .version("0.1.0")
+        .authors(vec!["Christopher L Murray".to_string()])
+        .website("https://github.com/leechristophermurray")
+        .license_type(gtk4::License::Mit)
+        .comments("A sleek, pill-shaped application launcher for Linux.")
+        .logo_icon_name("system-search") // Generic icon or custom one if we had it
+        .build();
+    
+    dialog.present();
 }
