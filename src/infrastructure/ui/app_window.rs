@@ -4,13 +4,13 @@ use gtk4::{
     ListBoxRow, Label, Orientation, StyleContext, gdk
 };
 use std::sync::Arc;
-use crate::application::use_cases::search_apps::SearchApps;
+use crate::application::use_cases::omnibar::Omnibar;
 use crate::application::use_cases::execute_command::ExecuteCommand;
 use crate::domain::model::App;
 // UI Dependencies wrapper
 #[derive(Clone)]
 pub struct AppContext {
-    pub search_apps: Arc<SearchApps>,
+    pub omnibar: Arc<Omnibar>,
     pub execute_command: Arc<ExecuteCommand>,
 }
 
@@ -106,138 +106,7 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
             return;
         }
 
-        let results = if query.starts_with("ss ") {
-
-            let cmd_input = query[3..].trim();
-             if !cmd_input.is_empty() {
-                 let wrapped_cmd = format!(
-                     "if command -v gnome-terminal >/dev/null 2>&1; then gnome-terminal -- {}; elif command -v ptyxis >/dev/null 2>&1; then ptyxis --standalone -- {}; else x-terminal-emulator -e {}; fi", 
-                     cmd_input, cmd_input, cmd_input
-                 );
-                 vec![App {
-                     name: format!("Execute: {}", cmd_input),
-                     exec_path: wrapped_cmd,
-                     icon: Some("utilities-terminal".to_string()),
-                     is_running: false,
-                 }]
-             } else {
-                 vec![]
-             }
-        } else if query.starts_with("l ") {
-            let settings_query = query[2..].trim();
-            // Define settings items
-            let items = vec![
-                App { 
-                    name: "About Launch".to_string(), 
-                    exec_path: "internal:about".to_string(), 
-                    icon: Some("help-about".to_string()), 
-                    is_running: false 
-                },
-                App { 
-                    name: "Quit".to_string(), 
-                    exec_path: "internal:quit".to_string(), 
-                    icon: Some("application-exit".to_string()), 
-                    is_running: false 
-                },
-            ];
-            
-            items.into_iter()
-                .filter(|app| app.name.to_lowercase().contains(&settings_query.to_lowercase()))
-                .collect::<Vec<App>>()
-        } else if query.starts_with("f ") {
-            let path_input = query[2..].trim();
-            let mut search_path = path_input.to_string();
-            
-            // Handle ~ expansion
-            if search_path.starts_with('~') {
-                if let Ok(home) = std::env::var("HOME") {
-                    search_path = search_path.replacen("~", &home, 1);
-                }
-            } else if search_path.is_empty() {
-                 if let Ok(home) = std::env::var("HOME") {
-                    search_path = home;
-                }
-            }
-
-            let path = std::path::Path::new(&search_path);
-            let (dir, prefix) = if search_path.ends_with('/') || path.is_dir() {
-                 if path.is_dir() {
-                     (path, "")
-                 } else {
-                     // Path likely doesn't exist yet or is just a prefix that happens to end in /
-                     // But if it ends in /, we usually mean "contents of this dir"
-                     // If the dir strictly doesn't exist, we might want to go up
-                     if path.exists() {
-                         (path, "")
-                     } else {
-                         (path.parent().unwrap_or(std::path::Path::new("/")), path.file_name().and_then(|s| s.to_str()).unwrap_or(""))
-                     }
-                 }
-            } else {
-                 (path.parent().unwrap_or(std::path::Path::new("/")), path.file_name().and_then(|s| s.to_str()).unwrap_or(""))
-            };
-
-            let mut files = vec![];
-            if let Ok(entries) = std::fs::read_dir(dir) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    let name = entry.file_name().to_string_lossy().to_string();
-                    
-                    if name.starts_with('.') { continue; } // Skip hidden for cleanliness
-                    if !prefix.is_empty() && !name.to_lowercase().starts_with(&prefix.to_lowercase()) { continue; }
-
-                    let is_dir = path.is_dir();
-                    let icon = if is_dir { "folder" } else { "text-x-generic" };
-                    let exec = if is_dir {
-                        // Open folder with nautilus
-                        format!("nautilus \"{}\"", path.display())
-                    } else {
-                        // Open file with xdg-open
-                        format!("xdg-open \"{}\"", path.display())
-                    };
-                    
-                    // For directories, append / to name for better UX
-                    let display_name = if is_dir { format!("{}/", name) } else { name };
-
-                    files.push(App {
-                        name: display_name,
-                        exec_path: exec,
-                        icon: Some(icon.to_string()),
-                        is_running: false,
-                    });
-                }
-            }
-            // Sort: Directories first, then alphabetical
-            files.sort_by(|a, b| {
-                let a_is_dir = a.name.ends_with('/');
-                let b_is_dir = b.name.ends_with('/');
-                if a_is_dir && !b_is_dir { std::cmp::Ordering::Less }
-                else if !a_is_dir && b_is_dir { std::cmp::Ordering::Greater }
-                else { a.name.cmp(&b.name) }
-            });
-            files.into_iter().take(20).collect() // Limit results
-        } else {
-            // Shortcuts Registry
-            let shortcuts = std::collections::HashMap::from([
-                ("term", "gnome-terminal"),
-                ("calc", "gnome-calculator"),
-                ("files", "nautilus"),
-                ("web", "firefox"),
-            ]);
-
-            let mut search_results = ctx_clone.search_apps.execute(query);
-            
-            if let Some(cmd) = shortcuts.get(query) {
-                 search_results.insert(0, App {
-                     name: format!("Shortcut: {}", cmd),
-                     exec_path: cmd.to_string(),
-                     icon: Some("emblem-symbolic-link".to_string()),
-                     is_running: false,
-                 });
-            }
-            
-            search_results
-        };
+        let results = ctx_clone.omnibar.search(query);
         
         if results.is_empty() {
              list_box_clone.set_visible(false);

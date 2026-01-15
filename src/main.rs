@@ -9,8 +9,13 @@ use std::sync::Arc;
 
 use crate::infrastructure::filesystem::desktop_entry_adapter::LinuxAppRepoAdapter;
 use crate::infrastructure::filesystem::procfs_adapter::ProcFsMonitorAdapter;
+use crate::infrastructure::filesystem::fs_adapter::LocalFileSystemAdapter;
 use crate::infrastructure::system::command_executor_adapter::SystemCommandExecutorAdapter;
-use crate::application::use_cases::search_apps::SearchApps;
+use crate::infrastructure::system::power_adapter::LinuxSystemPowerAdapter;
+use crate::infrastructure::services::calculator_adapter::MevalCalculatorAdapter;
+use crate::infrastructure::services::shortcut_adapter::StaticShortcutAdapter;
+
+use crate::application::use_cases::omnibar::Omnibar;
 use crate::application::use_cases::execute_command::ExecuteCommand;
 use crate::infrastructure::ui::app_window::{build_ui, AppContext};
 
@@ -19,14 +24,25 @@ fn main() {
     let app_repo = Arc::new(LinuxAppRepoAdapter::new());
     let process_monitor = Arc::new(ProcFsMonitorAdapter::new());
     let command_executor = Arc::new(SystemCommandExecutorAdapter::new());
+    let fs_adapter = Arc::new(LocalFileSystemAdapter::new());
+    let power_adapter = Arc::new(LinuxSystemPowerAdapter::new());
+    let calculator_adapter = Arc::new(MevalCalculatorAdapter::new());
+    let shortcut_adapter = Arc::new(StaticShortcutAdapter::new());
 
     // 2. Instantiate Use Cases
-    let search_apps = Arc::new(SearchApps::new(app_repo, process_monitor));
+    let omnibar = Arc::new(Omnibar::new(
+        app_repo.clone(),
+        process_monitor.clone(),
+        fs_adapter,
+        shortcut_adapter,
+        power_adapter,
+        calculator_adapter,
+    ));
     let execute_command = Arc::new(ExecuteCommand::new(command_executor));
 
     // 3. Create Context
     let ctx = AppContext {
-        search_apps,
+        omnibar,
         execute_command,
     };
 

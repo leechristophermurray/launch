@@ -24,6 +24,7 @@ assets = [
 ]
 
 [dependencies]
+meval = "0.2"
 
 gtk4 = "0.9"
 walkdir = "2"
