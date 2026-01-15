@@ -31,7 +31,9 @@ Launch uses strict prefixes to route your queries to different providers:
 | `f ` | **Files** | Browse the filesystem. Use `Left`/`Right` keys to navigate. | `f /home/user/` |
 | `ss ` | **Shortcuts** | Run a saved shortcut. | `ss term` |
 | `m ` | **Macros** | Execute a sequence of commands (Macro). | `m dev-setup` |
-| `c ` | **Calc** | Solve math expressions (supports basic LaTeX!). | `c \sqrt{16} * 2` |
+| `c ` | **Calc** | Solve math expressions (supports complex LaTeX: `\sin`, `\log`, `2\pi e`, `\frac{1}{2}`, infinite/NaN handling). | `c \sqrt{16} * 2` |
+| `d ` | **Dict** | Smart Dictionary. Offline lookup (Webster) + Online Fallback (Google). | `d rust` |
+| `w ` | **Window** | Switch to open windows. Shows [Workspace] and [Screen] indicators. | `w term` |
 | `! ` | **System** | Power operations (suspend, reboot, poweroff). | `! reboot` |
 | `l ` | **Launch** | Internal commands (Settings, About, Quit). | `l settings` |
 
