@@ -13,7 +13,9 @@ use crate::infrastructure::filesystem::fs_adapter::LocalFileSystemAdapter;
 use crate::infrastructure::system::command_executor_adapter::SystemCommandExecutorAdapter;
 use crate::infrastructure::system::power_adapter::LinuxSystemPowerAdapter;
 use crate::infrastructure::services::calculator_adapter::MevalCalculatorAdapter;
-use crate::infrastructure::services::shortcut_adapter::StaticShortcutAdapter;
+use crate::infrastructure::services::settings_store::SettingsStore;
+use crate::infrastructure::services::json_shortcut_adapter::JsonShortcutAdapter;
+use crate::infrastructure::services::json_macro_adapter::JsonMacroAdapter;
 
 use crate::application::use_cases::omnibar::Omnibar;
 use crate::application::use_cases::execute_command::ExecuteCommand;
@@ -27,18 +29,23 @@ fn main() {
     let fs_adapter = Arc::new(LocalFileSystemAdapter::new());
     let power_adapter = Arc::new(LinuxSystemPowerAdapter::new());
     let calculator_adapter = Arc::new(MevalCalculatorAdapter::new());
-    let shortcut_adapter = Arc::new(StaticShortcutAdapter::new());
+    
+    // Persistence
+    let settings_store = Arc::new(SettingsStore::new());
+    let shortcut_adapter = Arc::new(JsonShortcutAdapter::new(settings_store.clone()));
+    let macro_adapter = Arc::new(JsonMacroAdapter::new(settings_store.clone()));
 
     // 2. Instantiate Use Cases
     let omnibar = Arc::new(Omnibar::new(
         app_repo.clone(),
         process_monitor.clone(),
         fs_adapter,
-        shortcut_adapter,
+        shortcut_adapter.clone(),
+        macro_adapter.clone(),
         power_adapter,
         calculator_adapter,
     ));
-    let execute_command = Arc::new(ExecuteCommand::new(command_executor));
+    let execute_command = Arc::new(ExecuteCommand::new(command_executor, macro_adapter));
 
     // 3. Create Context
     let ctx = AppContext {

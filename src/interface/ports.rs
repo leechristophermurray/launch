@@ -1,8 +1,10 @@
-use crate::domain::model::App;
+use crate::domain::model::{App, Macro};
 
 pub trait IAppRepository {
     fn find_apps(&self) -> Vec<App>;
 }
+
+use std::collections::HashMap;
 
 pub trait IProcessMonitor {
     fn get_running_pids(&self) -> Vec<u32>;
@@ -27,7 +29,19 @@ pub trait ICalculator {
     fn calculate(&self, expression: &str) -> Option<String>;
 }
 
+
+// ... other ports ...
+
 pub trait IShortcutRepository {
     fn get(&self, key: &str) -> Option<String>;
-    fn get_all(&self) -> std::collections::HashMap<String, String>;
+    fn get_all(&self) -> HashMap<String, String>;
+    fn add(&self, key: String, cmd: String) -> Result<(), String>;
+    fn remove(&self, key: &str) -> Result<(), String>;
+}
+
+pub trait IMacroRepository {
+    fn get(&self, name: &str) -> Option<Macro>;
+    fn get_all(&self) -> Vec<Macro>;
+    fn add(&self, mac: Macro) -> Result<(), String>;
+    fn remove(&self, name: &str) -> Result<(), String>;
 }

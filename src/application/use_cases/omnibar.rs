@@ -1,5 +1,5 @@
 use crate::domain::model::App;
-use crate::interface::ports::{IAppRepository, IProcessMonitor, IFileSystem, ISystemPower, ICalculator, IShortcutRepository};
+use crate::interface::ports::{IAppRepository, IProcessMonitor, IFileSystem, ISystemPower, ICalculator, IShortcutRepository, IMacroRepository};
 use std::sync::Arc;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -9,6 +9,7 @@ pub struct Omnibar {
     process_monitor: Arc<dyn IProcessMonitor + Send + Sync>,
     fs: Arc<dyn IFileSystem + Send + Sync>,
     shortcuts: Arc<dyn IShortcutRepository + Send + Sync>,
+    macros: Arc<dyn IMacroRepository + Send + Sync>,
     power: Arc<dyn ISystemPower + Send + Sync>,
     calculator: Arc<dyn ICalculator + Send + Sync>,
 }
@@ -19,6 +20,7 @@ impl Omnibar {
         process_monitor: Arc<dyn IProcessMonitor + Send + Sync>,
         fs: Arc<dyn IFileSystem + Send + Sync>,
         shortcuts: Arc<dyn IShortcutRepository + Send + Sync>,
+        macros: Arc<dyn IMacroRepository + Send + Sync>,
         power: Arc<dyn ISystemPower + Send + Sync>,
         calculator: Arc<dyn ICalculator + Send + Sync>,
     ) -> Self {
@@ -27,6 +29,7 @@ impl Omnibar {
             process_monitor,
             fs,
             shortcuts,
+            macros,
             power,
             calculator,
         }
@@ -171,6 +174,32 @@ impl Omnibar {
              return vec![];
         }
 
+        if let Some(m_query) = query.strip_prefix("m ") {
+             let name = m_query.trim();
+             if let Some(mac) = self.macros.get(name) {
+                 return vec![App {
+                     name: format!("Macro: {}", name),
+                     // Encode the macro execution as a special internal command
+                     // Or just return it. The executor needs to know how to handle it.
+                     // Let's use internal:macro:name
+                     exec_path: format!("internal:macro:{}", name),
+                     icon: Some("system-run".to_string()),
+                     is_running: false,
+                 }];
+             }
+             // Show all macros matching
+             let all = self.macros.get_all();
+             return all.into_iter()
+                 .filter(|m| m.name.contains(name))
+                 .map(|m| App {
+                     name: format!("Macro: {}", m.name),
+                     exec_path: format!("internal:macro:{}", m.name),
+                     icon: Some("system-run".to_string()),
+                     is_running: false
+                 })
+                 .collect();
+        }
+
         if let Some(sys_query) = query.strip_prefix("! ") {
             let action = sys_query.trim();
             // predefined actions
@@ -198,6 +227,12 @@ impl Omnibar {
                     name: "Quit".to_string(), 
                     exec_path: "internal:quit".to_string(), 
                     icon: Some("application-exit".to_string()), 
+                    is_running: false 
+                },
+                App { 
+                    name: "Settings".to_string(), 
+                    exec_path: "internal:settings".to_string(), 
+                    icon: Some("preferences-system".to_string()), 
                     is_running: false 
                 },
             ];
@@ -267,12 +302,25 @@ mod tests {
         }
     }
 
+    struct MockMacro;
+    impl IMacroRepository for MockMacro {
+        fn get(&self, name: &str) -> Option<Macro> {
+            if name == "test" { 
+                Some(Macro { name: "test".to_string(), actions: vec!["x echo hi".to_string()] }) 
+            } else { None }
+        }
+        fn get_all(&self) -> Vec<Macro> { vec![] }
+        fn add(&self, _mac: Macro) -> Result<(), String> { Ok(()) }
+        fn remove(&self, _name: &str) -> Result<(), String> { Ok(()) }
+    }
+
     fn create_omnibar() -> Omnibar {
         Omnibar::new(
             Arc::new(MockAppRepo),
             Arc::new(MockProcessMonitor),
             Arc::new(MockFS),
             Arc::new(MockShortcuts),
+            Arc::new(MockMacro),
             Arc::new(MockPower),
             Arc::new(MockCalculator),
         )
@@ -292,6 +340,15 @@ mod tests {
         let results = omnibar.search("ss term");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].exec_path, "gnome-terminal");
+    }
+
+    #[test]
+    fn test_routes_macro() {
+        let omnibar = create_omnibar();
+        let results = omnibar.search("m test");
+        assert_eq!(results.len(), 1);
+        assert!(results[0].name.contains("Macro: test"));
+        assert_eq!(results[0].exec_path, "internal:macro:test");
     }
 
     #[test]

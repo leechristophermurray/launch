@@ -25,4 +25,12 @@ impl IShortcutRepository for StaticShortcutAdapter {
     fn get_all(&self) -> HashMap<String, String> {
         self.shortcuts.clone()
     }
+
+    fn add(&self, _key: String, _cmd: String) -> Result<(), String> {
+        Err("Cannot modify static shortcuts".to_string())
+    }
+
+    fn remove(&self, _key: &str) -> Result<(), String> {
+        Err("Cannot modify static shortcuts".to_string())
+    }
 }

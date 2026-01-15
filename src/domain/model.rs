@@ -7,6 +7,12 @@ pub struct App {
     pub is_running: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Macro {
+    pub name: String,
+    pub actions: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Shortcut {
     pub key: String,

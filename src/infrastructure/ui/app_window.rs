@@ -173,6 +173,8 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
                         if let Some(app) = window_exec.application() { app.quit(); }
                     } else if cmd == "internal:about" {
                         show_about_dialog(&window_exec);
+                    } else if cmd == "internal:settings" {
+                        show_settings_dialog(&window_exec);
                     }
                 } else {
                     ctx_clone_exec.execute_command.execute(&cmd);
@@ -330,5 +332,31 @@ fn show_about_dialog(window: &ApplicationWindow) {
     // Apply styling
     dialog.add_css_class("about-dialog");
     
+    dialog.present();
+}
+
+fn show_settings_dialog(window: &ApplicationWindow) {
+    let dialog = gtk4::Window::builder()
+        .transient_for(window)
+        .modal(true)
+        .title("Settings")
+        .default_width(400)
+        .default_height(300)
+        .build();
+    
+    let box_container = gtk4::Box::new(Orientation::Vertical, 10);
+    box_container.set_margin_top(20);
+    box_container.set_margin_bottom(20);
+    box_container.set_margin_start(20);
+    box_container.set_margin_end(20);
+
+    let label = Label::new(Some("Settings Placeholder"));
+    label.add_css_class("title-1");
+    box_container.append(&label);
+
+    let info = Label::new(Some("Edit JSON at ~/.config/launch/settings.json"));
+    box_container.append(&info);
+
+    dialog.set_child(Some(&box_container));
     dialog.present();
 }
