@@ -52,6 +52,13 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
             font-weight: bold;
             color: #aaddff;
         }
+        .about-dialog {
+            background-color: rgba(30, 30, 30, 0.95);
+            color: white;
+        }
+        .about-dialog label {
+            color: white;
+        }
     ");
     StyleContext::add_provider_for_display(
         &gdk::Display::default().expect("Could not connect to a display."),
@@ -319,8 +326,11 @@ fn show_about_dialog(window: &ApplicationWindow) {
         .license_type(gtk4::License::Custom)
         .license("Full license available at: https://github.com/leechristophermurray/launch/blob/master/LICENSE")
         .comments("A sleek, pill-shaped application launcher for Linux.")
-        .logo_icon_name("system-search") // Generic icon or custom one if we had it
+        .logo_icon_name("system-search") 
         .build();
+    
+    // Apply styling
+    dialog.add_css_class("about-dialog");
     
     dialog.present();
 }
