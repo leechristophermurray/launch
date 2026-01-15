@@ -314,7 +314,8 @@ fn show_about_dialog(window: &ApplicationWindow) {
         .version("0.1.0")
         .authors(vec!["Christopher L Murray".to_string()])
         .website("https://github.com/leechristophermurray")
-        .license_type(gtk4::License::MitX11)
+        .license_type(gtk4::License::Custom)
+        .license("Full license available at: https://github.com/leechristophermurray/launch/blob/master/LICENSE")
         .comments("A sleek, pill-shaped application launcher for Linux.")
         .logo_icon_name("system-search") // Generic icon or custom one if we had it
         .build();
