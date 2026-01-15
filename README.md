@@ -11,7 +11,9 @@ A sleek, pill-shaped application launcher for Linux, built with Rust and GTK4. D
 -   **Visual Feedback**: Displays application icons.
 -   **Keyboard Navigation**:
     -   `Up` / `Down`: Navigate results.
-    -   `Enter`: Launch selected application.
+    -   `Enter`: Launch selected application (or Enter directory).
+    -   `Right Arrow`: Enter highlighted directory (File Browser).
+    -   `Left Arrow`: Go up one directory level (File Browser).
     -   `Ctrl + 1-9`: Quick launch the Nth result.
     -   `Escape`: Close the launcher.
 -   **Status Indicators**: Highlights running applications (bold text).
@@ -27,6 +29,20 @@ Type `l ` (lower case L followed by space) to access internal settings:
 Type `ss ` (double s followed by space) to immediately execute a shell command in a terminal.
 -   Example: `ss top` opens `btop`/`top` in a new terminal window.
 -   Supported terminals: `gnome-terminal`, `ptyxis`, `x-terminal-emulator`.
+
+### 📂 File Browser
+Type `f ` (lower case F followed by space) to browse the filesystem.
+-   Start typing a path (e.g., `f /home`) to filter.
+-   Use `Right Arrow` to enter directories.
+-   Use `Left Arrow` to go up.
+-   `Enter` on a file opens it with `xdg-open`.
+-   `Enter` on a directory opens it in `nautilus`.
+
+### 👻 Daemon Mode
+Launch runs as a background daemon by default.
+-   Run `launch toggle` to show/hide the window.
+-   Bind `launch toggle` to a global shortcut in your Desktop Environment settings (e.g., `Super+Space`).
+-   The window automatically hides when it loses focus or when an app is launched.
 
 ### ⚡ Shortcuts
 Built-in query shortcuts for fast access:

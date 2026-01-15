@@ -357,7 +357,8 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
             if key == gtk4::gdk::Key::Right {
                 if let Some(row) = list_box_key.selected_row() {
                     let idx = row.index() as usize;
-                    if let Some(path) = cmds_key.borrow().get(idx) {
+                    let path_opt = cmds_key.borrow().get(idx).cloned();
+                    if let Some(path) = path_opt {
                         // Check if it's a directory (we exec nautilus "path")
                         if path.starts_with("nautilus \"") && path.ends_with("\"") {
                             let clean_path = &path[10..path.len()-1]; // Strip 'nautilus "' and '"'
