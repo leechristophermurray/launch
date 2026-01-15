@@ -301,14 +301,14 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
             if let Some(cmd) = cmd_opt {
                 if cmd.starts_with("internal:") {
                     if cmd == "internal:quit" {
-                        window_exec.close();
+                        if let Some(app) = window_exec.application() { app.quit(); }
                     } else if cmd == "internal:about" {
                         show_about_dialog(&window_exec);
                     }
                 } else {
                     ctx_clone_exec.execute_command.execute(&cmd);
                     e.set_text("");
-                    window_exec.close(); // Exit on launch
+                    window_exec.set_visible(false); // Hide on launch
                 }
             }
         }
@@ -324,7 +324,7 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
 
     controller.connect_key_pressed(move |_, key, _keycode, state| {
         if key == gtk4::gdk::Key::Escape {
-             win_key.close();
+             win_key.set_visible(false);
              return gtk4::glib::Propagation::Stop;
         }
         
@@ -364,14 +364,14 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
                          if let Some(cmd) = cmd_opt {
                              if cmd.starts_with("internal:") {
                                 if cmd == "internal:quit" {
-                                    win_key.close();
+                                    if let Some(app) = win_key.application() { app.quit(); }
                                 } else if cmd == "internal:about" {
                                     show_about_dialog(&win_key);
                                 }
                              } else {
                                  ctx_key_exec.execute_command.execute(&cmd);
                                  entry_key.set_text("");
-                                 win_key.close(); // Exit on launch
+                                 win_key.set_visible(false); // Hide on launch
                              }
                              return gtk4::glib::Propagation::Stop;
                          }
@@ -394,10 +394,16 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
             if let Some(app) = app_weak.upgrade() {
                 // If no window in our app is active, user clicked away -> Close
                 if app.active_window().is_none() {
-                    win.close(); 
+                    win.set_visible(false); 
                 }
             }
         }
+    });
+
+    // Intercept Close Request (Alt+F4) to just hide
+    window.connect_close_request(move |win| {
+        win.set_visible(false);
+        gtk4::glib::Propagation::Stop
     });
 
     window.present();

@@ -33,15 +33,50 @@ fn main() {
     // 4. Initialize GTK Application
     let app = Application::builder()
         .application_id("com.launch.launcher")
+        .flags(gtk4::gio::ApplicationFlags::HANDLES_COMMAND_LINE) // Enable CLI handling
         .build();
 
+    // Keep app alive even when windows are hidden
+    let hold_guard = std::rc::Rc::new(std::cell::RefCell::new(None));
+
     app.connect_activate(move |app| {
-        // Check if ANY window exists, not just the currently focused/active one.
+        // Ensure we hold the app to prevent exit when window hides
+        if hold_guard.borrow().is_none() {
+             *hold_guard.borrow_mut() = Some(app.hold());
+        }
+
         if let Some(window) = app.windows().first() {
             window.present();
         } else {
             build_ui(app, ctx.clone());
         }
+    });
+
+    app.connect_command_line(move |app, cmdline| {
+        // Ensure hold
+        if hold_guard.borrow().is_none() {
+             *hold_guard.borrow_mut() = Some(app.hold());
+        }
+
+        let args = cmdline.arguments();
+        let toggle = args.iter().any(|arg| arg.to_str() == Some("toggle"));
+
+        if toggle {
+            if let Some(window) = app.windows().first() {
+                if window.is_visible() && window.is_active() {
+                    window.set_visible(false);
+                } else {
+                    window.present();
+                }
+            } else {
+                build_ui(app, ctx.clone());
+            }
+        } else {
+            // Default behavior: Open/Show
+            app.activate();
+        }
+        
+        0 // Exit code
     });
 
     app.run();
