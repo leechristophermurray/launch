@@ -422,7 +422,7 @@ dependencies = [
 
 [[package]]
 name = "launch"
-version = "0.1.0"
+version = "0.3.1415"
 dependencies = [
  "fuzzy-matcher",
  "gtk4",
