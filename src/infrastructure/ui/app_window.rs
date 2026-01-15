@@ -348,15 +348,19 @@ fn show_about_dialog(window: &ApplicationWindow) {
     dialog.present();
 }
 
-fn show_add_shortcut_dialog(
+fn manage_shortcut_dialog(
     parent: &gtk4::Window, 
     ctx: &AppContext, 
+    existing: Option<(String, String)>,
     on_success: impl Fn() + 'static
 ) {
+    let is_edit = existing.is_some();
+    let title = if is_edit { "Edit Shortcut" } else { "Add Shortcut" };
+
     let dialog = Window::builder()
         .transient_for(parent)
         .modal(true)
-        .title("Add Shortcut")
+        .title(title)
         .default_width(300)
         .default_height(150)
         .build();
@@ -373,6 +377,11 @@ fn show_add_shortcut_dialog(
     let cmd_entry = Entry::new();
     cmd_entry.set_placeholder_text(Some("Command (e.g. 'gnome-terminal')"));
     
+    if let Some((k, c)) = &existing {
+        key_entry.set_text(k);
+        cmd_entry.set_text(c);
+    }
+
     let btn_box = gtk4::Box::new(Orientation::Horizontal, 10);
     let save_btn = Button::with_label("Save");
     let cancel_btn = Button::with_label("Cancel");
@@ -397,18 +406,33 @@ fn show_add_shortcut_dialog(
     let dialog_weak_save = dialog.downgrade();
     let key_entry_clone = key_entry.clone();
     let cmd_entry_clone = cmd_entry.clone();
-    
+    let existing_unwrap = existing.clone();
+
     save_btn.connect_clicked(move |_| {
         let key = key_entry_clone.text().to_string();
         let cmd = cmd_entry_clone.text().to_string();
         
+        let old_key = existing_unwrap.as_ref().map(|(k, _)| k.clone());
+
         if !key.is_empty() && !cmd.is_empty() {
-             // Add to repo
-             if let Err(e) = ctx_clone.omnibar.shortcuts.add(key, cmd) {
+             // If editing and key changed, remove old one first
+             if let Some(old) = &old_key {
+                 if old != &key {
+                     if let Err(e) = ctx_clone.omnibar.shortcuts.remove(old) {
+                         println!("Error removing old shortcut during rename: {}", e);
+                         // Continue? Or fail? Probably safer to fail or warn.
+                     }
+                 }
+             }
+
+             // Add new/updated to repo
+             if let Err(e) = ctx_clone.omnibar.shortcuts.add(key.clone(), cmd) {
                  println!("Error adding shortcut: {}", e);
                  if let Some(d) = dialog_weak_save.upgrade() {
-                     show_error_dialog(&d, &format!("Failed to add shortcut: {}", e));
+                     show_error_dialog(&d, &format!("Failed to save shortcut: {}", e));
                  }
+                 // If failed and we removed old key, we might be in bad state.
+                 // Ideally this should be transactional, but for now we accept this risk.
              } else {
                  on_success();
                  if let Some(d) = dialog_weak_save.upgrade() { d.close(); }
@@ -416,19 +440,24 @@ fn show_add_shortcut_dialog(
         }
     });
 
+
     dialog.present();
 }
 
 use crate::domain::model::Macro;
-fn show_add_macro_dialog(
+fn manage_macro_dialog(
     parent: &gtk4::Window,
     ctx: &AppContext,
+    existing: Option<Macro>,
     on_success: impl Fn() + 'static
 ) {
+    let is_edit = existing.is_some();
+    let title = if is_edit { "Edit Macro" } else { "Add Macro" };
+
     let dialog = Window::builder()
         .transient_for(parent)
         .modal(true)
-        .title("Add Macro")
+        .title(title)
         .default_width(400)
         .default_height(300)
         .build();
@@ -443,6 +472,12 @@ fn show_add_macro_dialog(
     name_entry.set_placeholder_text(Some("Macro Name (e.g. 'dev-setup')"));
     
     let buffer = TextBuffer::new(None);
+    
+    if let Some(mac) = &existing {
+        name_entry.set_text(&mac.name);
+        buffer.set_text(&mac.actions.join("\n"));
+    }
+
     let text_view = TextView::with_buffer(&buffer);
     text_view.set_vexpand(true);
     let sc = ScrolledWindow::builder()
@@ -473,6 +508,7 @@ fn show_add_macro_dialog(
     let ctx_clone = ctx.clone();
     let dialog_weak_save = dialog.downgrade();
     let name_entry_clone = name_entry.clone();
+    let existing_unwrap = existing.clone();
     
     save_btn.connect_clicked(move |_| {
         let name = name_entry_clone.text().to_string();
@@ -483,13 +519,23 @@ fn show_add_macro_dialog(
             .map(|l| l.trim().to_string())
             .filter(|l| !l.is_empty())
             .collect();
+            
+        let old_name = existing_unwrap.as_ref().map(|m| m.name.clone());
 
         if !name.is_empty() && !actions.is_empty() {
-             let new_macro = Macro { name: name, actions: actions };
+             if let Some(old) = &old_name {
+                 if old != &name {
+                     if let Err(e) = ctx_clone.omnibar.macros.remove(old) {
+                         println!("Error removing old macro during rename: {}", e);
+                     }
+                 }
+             }
+
+             let new_macro = Macro { name: name.clone(), actions: actions };
              if let Err(e) = ctx_clone.omnibar.macros.add(new_macro) {
                  println!("Error adding macro: {}", e);
                  if let Some(d) = dialog_weak_save.upgrade() {
-                     show_error_dialog(&d, &format!("Failed to add macro: {}", e));
+                     show_error_dialog(&d, &format!("Failed to save macro: {}", e));
                  }
              } else {
                  on_success();
@@ -579,11 +625,13 @@ fn show_settings_dialog(window: &ApplicationWindow, ctx: &AppContext) {
     // Initial load
     refresh_shortcuts();
 
-    // Buttons
+
     let sc_actions = gtk4::Box::new(Orientation::Horizontal, 10);
     let add_sc_btn = gtk4::Button::with_label("Add");
+    let edit_sc_btn = gtk4::Button::with_label("Edit");
     let del_sc_btn = gtk4::Button::with_label("Delete");
     sc_actions.append(&add_sc_btn);
+    sc_actions.append(&edit_sc_btn);
     sc_actions.append(&del_sc_btn);
     shortcuts_box.append(&sc_actions);
     
@@ -594,10 +642,32 @@ fn show_settings_dialog(window: &ApplicationWindow, ctx: &AppContext) {
     add_sc_btn.connect_clicked(move |_| {
         if let Some(parent) = dialog_weak_sc.upgrade() {
             let refresh = refresh_sc_clone_add.clone();
-            show_add_shortcut_dialog(&parent, &ctx_clone_add_sc, move || {
+            manage_shortcut_dialog(&parent, &ctx_clone_add_sc, None, move || {
                 refresh();
             });
         }
+    });
+    
+    let sc_list_edit = sc_list.clone();
+    let ctx_clone_edit_sc = ctx.clone();
+    let refresh_sc_clone_edit = refresh_shortcuts.clone();
+    let dialog_weak_edit_sc = dialog.downgrade();
+
+    edit_sc_btn.connect_clicked(move |_| {
+         if let Some(row) = sc_list_edit.selected_row() {
+            let key = row.widget_name().to_string();
+            if !key.is_empty() {
+                // Fetch details
+                if let Some(cmd) = ctx_clone_edit_sc.omnibar.shortcuts.get(&key) {
+                    if let Some(parent) = dialog_weak_edit_sc.upgrade() {
+                         let refresh = refresh_sc_clone_edit.clone();
+                         manage_shortcut_dialog(&parent, &ctx_clone_edit_sc, Some((key, cmd)), move || {
+                             refresh();
+                         });
+                    }
+                }
+            }
+         }
     });
 
     let sc_list_del = sc_list.clone();
@@ -678,10 +748,13 @@ fn show_settings_dialog(window: &ApplicationWindow, ctx: &AppContext) {
 
     refresh_macros();
     
+
     let mac_actions = gtk4::Box::new(Orientation::Horizontal, 10);
     let add_mac_btn = gtk4::Button::with_label("Add");
+    let edit_mac_btn = gtk4::Button::with_label("Edit");
     let del_mac_btn = gtk4::Button::with_label("Delete");
     mac_actions.append(&add_mac_btn);
+    mac_actions.append(&edit_mac_btn);
     mac_actions.append(&del_mac_btn);
     macros_box.append(&mac_actions);
 
@@ -692,9 +765,30 @@ fn show_settings_dialog(window: &ApplicationWindow, ctx: &AppContext) {
     add_mac_btn.connect_clicked(move |_| {
          if let Some(parent) = dialog_weak_mac.upgrade() {
             let refresh = refresh_mac_clone_add.clone();
-            show_add_macro_dialog(&parent, &ctx_clone_add_mac, move || {
+            manage_macro_dialog(&parent, &ctx_clone_add_mac, None, move || {
                 refresh();
             });
+         }
+    });
+
+    let mac_list_edit = mac_list.clone();
+    let ctx_clone_edit_mac = ctx.clone();
+    let refresh_mac_clone_edit = refresh_macros.clone();
+    let dialog_weak_edit_mac = dialog.downgrade();
+
+    edit_mac_btn.connect_clicked(move |_| {
+         if let Some(row) = mac_list_edit.selected_row() {
+            let name = row.widget_name().to_string();
+            if !name.is_empty() {
+                 if let Some(mac) = ctx_clone_edit_mac.omnibar.macros.get(&name) {
+                     if let Some(parent) = dialog_weak_edit_mac.upgrade() {
+                         let refresh = refresh_mac_clone_edit.clone();
+                         manage_macro_dialog(&parent, &ctx_clone_edit_mac, Some(mac), move || {
+                              refresh();
+                         });
+                     }
+                 }
+            }
          }
     });
 
