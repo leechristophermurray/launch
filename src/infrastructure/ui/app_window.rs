@@ -316,6 +316,7 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
     
     // Key Controller on Entry to handle navigation and shortcuts
     let controller = gtk4::EventControllerKey::new();
+    controller.set_propagation_phase(gtk4::PropagationPhase::Capture);
     let list_box_key = list_box.clone();
     let cmds_key = current_cmds.clone();
     let ctx_key_exec = ctx.clone();
