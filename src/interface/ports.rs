@@ -1,4 +1,4 @@
-use crate::domain::model::{App, Macro};
+use crate::domain::model::{App, Macro, Window};
 
 pub trait IAppRepository {
     fn find_apps(&self) -> Vec<App>;
@@ -39,9 +39,18 @@ pub trait IShortcutRepository {
     fn remove(&self, key: &str) -> Result<(), String>;
 }
 
+pub trait IDictionaryService {
+    fn lookup(&self, term: &str) -> Option<String>;
+}
+
 pub trait IMacroRepository {
     fn get(&self, name: &str) -> Option<Macro>;
     fn get_all(&self) -> Vec<Macro>;
     fn add(&self, mac: Macro) -> Result<(), String>;
     fn remove(&self, name: &str) -> Result<(), String>;
+}
+
+pub trait IWindowRepository {
+    fn get_open_windows(&self) -> Vec<Window>;
+    fn focus_window(&self, id: &str) -> Result<(), String>;
 }

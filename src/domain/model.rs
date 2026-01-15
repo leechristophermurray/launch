@@ -1,4 +1,13 @@
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Window {
+    pub id: String,
+    pub title: String,
+    pub app_name: String,
+    pub workspace: i32,
+    pub screen: i32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct App {
     pub name: String,

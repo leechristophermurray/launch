@@ -1,6 +1,7 @@
 use crate::interface::ports::ICommandExecutor;
 use crate::interface::ports::IMacroRepository;
 use crate::interface::ports::ISystemPower;
+use crate::interface::ports::IWindowRepository;
 use crate::application::use_cases::omnibar::Omnibar;
 use crate::domain::model::MacroAction;
 use std::sync::Arc;
@@ -13,6 +14,7 @@ pub struct ExecuteCommand {
     macros: Arc<dyn IMacroRepository + Send + Sync>,
     omnibar: Arc<Omnibar>,
     system: Arc<dyn ISystemPower + Send + Sync>,
+    window_repo: Arc<dyn IWindowRepository + Send + Sync>,
 }
 
 impl ExecuteCommand {
@@ -21,8 +23,9 @@ impl ExecuteCommand {
         macros: Arc<dyn IMacroRepository + Send + Sync>,
         omnibar: Arc<Omnibar>,
         system: Arc<dyn ISystemPower + Send + Sync>,
+        window_repo: Arc<dyn IWindowRepository + Send + Sync>,
     ) -> Self {
-        Self { executor, macros, omnibar, system }
+        Self { executor, macros, omnibar, system, window_repo }
     }
 
     pub fn execute(&self, cmd: &str) {
@@ -34,6 +37,13 @@ impl ExecuteCommand {
         if let Some(sys_action) = cmd.strip_prefix("internal:system:") {
              if let Err(e) = self.system.execute(sys_action) {
                  println!("System action failed: {}", e);
+             }
+             return;
+        }
+
+        if let Some(win_id) = cmd.strip_prefix("internal:window:") {
+             if let Err(e) = self.window_repo.focus_window(win_id) {
+                 println!("Failed to focus window: {}", e);
              }
              return;
         }

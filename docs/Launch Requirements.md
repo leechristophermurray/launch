@@ -34,7 +34,7 @@
     * toggle night light (gnome)
     * toggle dark mode (gnome)
     * toggle Do Not Disturb (gnome)
-  * `c `: calculate as the user types, with support for latex math notation.
+  * `c `: calculate as the user types, with support for latex math notation.and auto complete of latex math notation when the `\` is typed.
   * `d `: define words typed in the omnibar/searchbar. pressing enter launched a google search for the definition.
   * `w `: window and workspace switcher. A visual list of open windows categorized by GNOME Workspace. User could type "Firefox" and see results for "Switch to Firefox (Workspace 2)" or "New Firefox Window (Current Workspace)."
   * `

@@ -12,11 +12,13 @@ use crate::infrastructure::filesystem::procfs_adapter::ProcFsMonitorAdapter;
 use crate::infrastructure::filesystem::fs_adapter::LocalFileSystemAdapter;
 use crate::infrastructure::system::command_executor_adapter::SystemCommandExecutorAdapter;
 use crate::infrastructure::services::system_adapter::SystemAdapter;
-use crate::interface::ports::ISystemPower;
+use crate::infrastructure::services::window_adapter::SystemWindowAdapter;
+use crate::interface::ports::{ISystemPower, IWindowRepository};
 use crate::infrastructure::services::calculator_adapter::MevalCalculatorAdapter;
 use crate::infrastructure::services::settings_store::SettingsStore;
 use crate::infrastructure::services::json_shortcut_adapter::JsonShortcutAdapter;
 use crate::infrastructure::services::json_macro_adapter::JsonMacroAdapter;
+use crate::infrastructure::services::dictionary_adapter::SmartDictionaryAdapter;
 
 use crate::application::use_cases::omnibar::Omnibar;
 use crate::application::use_cases::execute_command::ExecuteCommand;
@@ -29,7 +31,9 @@ fn main() {
     let command_executor = Arc::new(SystemCommandExecutorAdapter::new());
     let fs_adapter = Arc::new(LocalFileSystemAdapter::new());
     let power_adapter: Arc<dyn ISystemPower + Send + Sync> = Arc::new(SystemAdapter::new());
+    let window_adapter: Arc<dyn IWindowRepository + Send + Sync> = Arc::new(SystemWindowAdapter::new());
     let calculator_adapter = Arc::new(MevalCalculatorAdapter::new());
+    let dictionary_adapter = Arc::new(SmartDictionaryAdapter::new());
     
     // Persistence
     let settings_store = Arc::new(SettingsStore::new());
@@ -43,10 +47,12 @@ fn main() {
         fs_adapter,
         shortcut_adapter.clone(),
         macro_adapter.clone(),
+        window_adapter.clone(),
         power_adapter.clone(),
         calculator_adapter,
+        dictionary_adapter,
     ));
-    let execute_command = Arc::new(ExecuteCommand::new(command_executor, macro_adapter, omnibar.clone(), power_adapter.clone()));
+    let execute_command = Arc::new(ExecuteCommand::new(command_executor, macro_adapter, omnibar.clone(), power_adapter.clone(), window_adapter));
 
     // 3. Create Context
     let ctx = AppContext {

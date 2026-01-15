@@ -140,6 +140,11 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
                  label.set_halign(gtk4::Align::Start);
                  label.set_margin_top(5);
                  label.set_margin_bottom(5);
+                 label.set_wrap(true);
+                 label.set_wrap_mode(gtk4::pango::WrapMode::WordChar);
+                 label.set_max_width_chars(50); // Prevent limitless expansion
+                 label.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+                 label.set_lines(5); // Show up to 5 lines of definition
                  
                  if app.is_running {
                     label.add_css_class("running-app");

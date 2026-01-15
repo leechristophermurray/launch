@@ -1,5 +1,5 @@
 use crate::domain::model::App;
-use crate::interface::ports::{IAppRepository, IProcessMonitor, IFileSystem, ISystemPower, ICalculator, IShortcutRepository, IMacroRepository};
+use crate::interface::ports::{IAppRepository, IProcessMonitor, IFileSystem, ISystemPower, ICalculator, IShortcutRepository, IMacroRepository, IWindowRepository, IDictionaryService};
 use std::sync::Arc;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -10,8 +10,10 @@ pub struct Omnibar {
     fs: Arc<dyn IFileSystem + Send + Sync>,
     pub shortcuts: Arc<dyn IShortcutRepository + Send + Sync>,
     pub macros: Arc<dyn IMacroRepository + Send + Sync>,
+    pub window_repo: Arc<dyn IWindowRepository + Send + Sync>,
     power: Arc<dyn ISystemPower + Send + Sync>,
     calculator: Arc<dyn ICalculator + Send + Sync>,
+    dictionary: Arc<dyn IDictionaryService + Send + Sync>,
 }
 
 impl Omnibar {
@@ -21,8 +23,11 @@ impl Omnibar {
         fs: Arc<dyn IFileSystem + Send + Sync>,
         shortcuts: Arc<dyn IShortcutRepository + Send + Sync>,
         macros: Arc<dyn IMacroRepository + Send + Sync>,
+        window_repo: Arc<dyn IWindowRepository + Send + Sync>,
         power: Arc<dyn ISystemPower + Send + Sync>,
         calculator: Arc<dyn ICalculator + Send + Sync>,
+
+        dictionary: Arc<dyn IDictionaryService + Send + Sync>,
     ) -> Self {
         Self {
             app_repo,
@@ -30,8 +35,10 @@ impl Omnibar {
             fs,
             shortcuts,
             macros,
+            window_repo,
             power,
             calculator,
+            dictionary,
         }
     }
 
@@ -44,6 +51,29 @@ impl Omnibar {
                 b.is_running.cmp(&a.is_running).then_with(|| a.name.cmp(&b.name))
             });
             return apps;
+        }
+
+        if let Some(w_query) = query.strip_prefix("w ") {
+             let keyword = w_query.trim().to_lowercase();
+             let windows = self.window_repo.get_open_windows();
+             
+             return windows.into_iter()
+                 .filter(|w| {
+                     keyword.is_empty() 
+                     || w.title.to_lowercase().contains(&keyword) 
+                     || w.app_name.to_lowercase().contains(&keyword)
+                 })
+                 .map(|w| {
+                     let ws_label = if w.workspace >= 0 { format!("[WS {}]", w.workspace + 1) } else { "[WS ?]".to_string() };
+                     let screen_label = if w.screen >= 0 { format!("[SCR {}]", w.screen + 1) } else { "[SCR ?]".to_string() };
+                     App {
+                         name: format!("{} {} {} - {}", ws_label, screen_label, w.app_name, w.title),
+                         exec_path: format!("internal:window:{}", w.id),
+                         icon: Some("preferences-system-windows".to_string()),
+                         is_running: true,
+                     }
+                 })
+                 .collect();
         }
 
         if let Some(term_cmd) = query.strip_prefix("x ") {
@@ -77,6 +107,7 @@ impl Omnibar {
             } else {
                 path_input.to_string()
             };
+
 
             let path = std::path::Path::new(&search_path);
             let (dir, prefix) = if search_path.ends_with('/') || self.fs.is_dir(&search_path) {
@@ -174,6 +205,27 @@ impl Omnibar {
              return vec![];
         }
 
+        if let Some(dict_query) = query.strip_prefix("d ") {
+             let term = dict_query.trim();
+             if term.is_empty() { return vec![]; }
+             
+             let (name, exec) = match self.dictionary.lookup(term) {
+                  Some(def) => {
+                      (format!("{}: {}", term, def), format!("xdg-open \"https://google.com/search?q=define+{}\"", term))
+                  },
+                 None => {
+                      (format!("Define '{}' on Google", term), format!("xdg-open \"https://google.com/search?q=define+{}\"", term))
+                 }
+             };
+
+             return vec![App {
+                 name,
+                 exec_path: exec,
+                 icon: Some("accessories-dictionary".to_string()),
+                 is_running: false,
+             }];
+        }
+
         if let Some(m_query) = query.strip_prefix("m ") {
              let name = m_query.trim();
              if let Some(_mac) = self.macros.get(name) {
@@ -264,7 +316,7 @@ impl Omnibar {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::model::MacroAction;
+    use crate::domain::model::{Macro, MacroAction, Window};
     use std::collections::HashMap;
     use std::sync::Mutex;
 
@@ -293,6 +345,8 @@ mod tests {
             if key == "term" { Some("gnome-terminal".to_string()) } else { None }
         }
         fn get_all(&self) -> HashMap<String, String> { HashMap::new() }
+        fn add(&self, _key: String, _cmd: String) -> Result<(), String> { Ok(()) }
+        fn remove(&self, _key: &str) -> Result<(), String> { Ok(()) }
     }
 
     struct MockPower;
@@ -300,10 +354,28 @@ mod tests {
         fn execute(&self, _action: &str) -> Result<(), String> { Ok(()) }
     }
 
+    struct MockWindowRepo;
+    impl IWindowRepository for MockWindowRepo {
+        fn get_open_windows(&self) -> Vec<Window> {
+             vec![
+                 Window { id: "0x1".to_string(), title: "Google Chrome".to_string(), app_name: "Chrome".to_string(), workspace: 0, screen: 0 },
+                 Window { id: "0x2".to_string(), title: "Terminal".to_string(), app_name: "Gnome-terminal".to_string(), workspace: 1, screen: 0 },
+             ]
+        }
+        fn focus_window(&self, _id: &str) -> Result<(), String> { Ok(()) }
+    }
+
     struct MockCalculator;
     impl ICalculator for MockCalculator {
         fn calculate(&self, expression: &str) -> Option<String> {
             if expression.contains("1+1") { Some("2".to_string()) } else { None }
+        }
+    }
+
+    struct MockDictionary;
+    impl IDictionaryService for MockDictionary {
+        fn lookup(&self, term: &str) -> Option<String> {
+            if term == "rust" { Some("Awesome language".to_string()) } else { None }
         }
     }
 
@@ -326,9 +398,27 @@ mod tests {
             Arc::new(MockFS),
             Arc::new(MockShortcuts),
             Arc::new(MockMacro),
+            Arc::new(MockWindowRepo),
             Arc::new(MockPower),
             Arc::new(MockCalculator),
+            Arc::new(MockDictionary),
         )
+    }
+
+    #[test]
+    fn test_routes_dictionary() {
+        let omnibar = create_omnibar();
+        
+        // Match found (Offline)
+        let results = omnibar.search("d rust");
+        assert_eq!(results.len(), 1);
+        assert!(results[0].name.contains("Awesome language"));
+        assert!(results[0].exec_path.contains("google.com"));
+
+        // Match not found (Fallback)
+        let results_fallback = omnibar.search("d unknown");
+        assert_eq!(results_fallback.len(), 1);
+        assert!(results_fallback[0].name.contains("Define 'unknown' on Google"));
     }
 
     #[test]
@@ -370,5 +460,16 @@ mod tests {
         let results = omnibar.search("! reboot");
         assert!(results.len() >= 1);
         assert!(results[0].name.contains("System: reboot"));
+    }
+
+    #[test]
+    fn test_routes_window() {
+        let omnibar = create_omnibar();
+        let results = omnibar.search("w term");
+        assert_eq!(results.len(), 1);
+        // Check for workspace and app info; note check for screen label if needed
+        assert!(results[0].name.contains("[WS 2]"));
+        assert!(results[0].name.contains("Gnome-terminal - Terminal"));
+        assert_eq!(results[0].exec_path, "internal:window:0x2");
     }
 }
