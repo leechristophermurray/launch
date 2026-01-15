@@ -312,6 +312,21 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
     entry.add_controller(controller);
 
 
+
+    // Auto-exit on focus loss
+    // Only close if the application doesn't have ANY active window (handling modals)
+    let app_weak = window.application().expect("Window must have app").downgrade();
+    window.connect_is_active_notify(move |win| {
+        if !win.is_active() {
+            if let Some(app) = app_weak.upgrade() {
+                // If no window in our app is active, user clicked away -> Close
+                if app.active_window().is_none() {
+                    win.close(); 
+                }
+            }
+        }
+    });
+
     window.present();
 }
 

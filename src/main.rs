@@ -36,7 +36,11 @@ fn main() {
         .build();
 
     app.connect_activate(move |app| {
-        build_ui(app, ctx.clone());
+        if let Some(window) = app.active_window() {
+            window.present();
+        } else {
+            build_ui(app, ctx.clone());
+        }
     });
 
     app.run();
