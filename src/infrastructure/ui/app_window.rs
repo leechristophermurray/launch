@@ -350,6 +350,39 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
              return gtk4::glib::Propagation::Stop;
         }
 
+        // Left/Right for File Browser Navigation
+        let current_text = entry_key.text().to_string();
+        if current_text.starts_with("f ") {
+            if key == gtk4::gdk::Key::Right {
+                if let Some(row) = list_box_key.selected_row() {
+                    let idx = row.index() as usize;
+                    if let Some(path) = cmds_key.borrow().get(idx) {
+                        // Check if it's a directory (we exec nautilus "path")
+                        if path.starts_with("nautilus \"") && path.ends_with("\"") {
+                            let clean_path = &path[10..path.len()-1]; // Strip 'nautilus "' and '"'
+                            entry_key.set_text(&format!("f {}/", clean_path));
+                            entry_key.set_position(-1); // Move cursor to end
+                            return gtk4::glib::Propagation::Stop;
+                        }
+                    }
+                }
+            } else if key == gtk4::gdk::Key::Left {
+                // Go up one directory
+                let path_part = current_text[2..].trim();
+                let path = std::path::Path::new(path_part);
+                if let Some(parent) = path.parent() {
+                     // Don't go above /
+                     if parent == std::path::Path::new("") {
+                         entry_key.set_text("f /");
+                     } else {
+                         entry_key.set_text(&format!("f {}/", parent.display()));
+                     }
+                     entry_key.set_position(-1);
+                     return gtk4::glib::Propagation::Stop;
+                }
+            }
+        }
+
         // Ctrl + 1..9
         if state.contains(gtk4::gdk::ModifierType::CONTROL_MASK) {
              let key_val = key.to_unicode(); // char
