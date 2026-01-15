@@ -45,7 +45,7 @@ fn main() {
         power_adapter,
         calculator_adapter,
     ));
-    let execute_command = Arc::new(ExecuteCommand::new(command_executor, macro_adapter));
+    let execute_command = Arc::new(ExecuteCommand::new(command_executor, macro_adapter, omnibar.clone()));
 
     // 3. Create Context
     let ctx = AppContext {

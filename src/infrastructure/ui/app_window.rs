@@ -2,7 +2,7 @@ use gtk4::prelude::*;
 use gtk4::{
     Application, ApplicationWindow, CssProvider, Entry, ListBox, 
     ListBoxRow, Label, Orientation, StyleContext, gdk, Notebook,
-    TextView, TextBuffer, Button, ScrolledWindow, Window
+    TextView, TextBuffer, Button, ScrolledWindow, Window, MessageDialog, ResponseType, DialogFlags
 };
 use std::sync::Arc;
 use crate::application::use_cases::omnibar::Omnibar;
@@ -316,6 +316,18 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
     window.present();
 }
 
+fn show_error_dialog(parent: &gtk4::Window, message: &str) {
+    let dialog = MessageDialog::new(
+        Some(parent),
+        DialogFlags::MODAL,
+        gtk4::MessageType::Error,
+        gtk4::ButtonsType::Ok,
+        message
+    );
+    dialog.connect_response(|d, _| d.close());
+    dialog.present();
+}
+
 fn show_about_dialog(window: &ApplicationWindow) {
     let dialog = gtk4::AboutDialog::builder()
         .transient_for(window)
@@ -394,6 +406,9 @@ fn show_add_shortcut_dialog(
              // Add to repo
              if let Err(e) = ctx_clone.omnibar.shortcuts.add(key, cmd) {
                  println!("Error adding shortcut: {}", e);
+                 if let Some(d) = dialog_weak_save.upgrade() {
+                     show_error_dialog(&d, &format!("Failed to add shortcut: {}", e));
+                 }
              } else {
                  on_success();
                  if let Some(d) = dialog_weak_save.upgrade() { d.close(); }
@@ -473,6 +488,9 @@ fn show_add_macro_dialog(
              let new_macro = Macro { name: name, actions: actions };
              if let Err(e) = ctx_clone.omnibar.macros.add(new_macro) {
                  println!("Error adding macro: {}", e);
+                 if let Some(d) = dialog_weak_save.upgrade() {
+                     show_error_dialog(&d, &format!("Failed to add macro: {}", e));
+                 }
              } else {
                  on_success();
                  if let Some(d) = dialog_weak_save.upgrade() { d.close(); }
@@ -585,6 +603,7 @@ fn show_settings_dialog(window: &ApplicationWindow, ctx: &AppContext) {
     let sc_list_del = sc_list.clone();
     let ctx_clone_del_sc = ctx.clone();
     let refresh_sc_clone_del = refresh_shortcuts.clone();
+    let dialog_weak_del_sc = dialog.downgrade();
     
     del_sc_btn.connect_clicked(move |_| {
         if let Some(row) = sc_list_del.selected_row() {
@@ -592,6 +611,9 @@ fn show_settings_dialog(window: &ApplicationWindow, ctx: &AppContext) {
             if !key.is_empty() {
                 if let Err(e) = ctx_clone_del_sc.omnibar.shortcuts.remove(&key) {
                     println!("Error removing shortcut: {}", e);
+                    if let Some(d) = dialog_weak_del_sc.upgrade() {
+                         show_error_dialog(&d, &format!("Failed to remove shortcut: {}", e));
+                    }
                 } else {
                     refresh_sc_clone_del();
                 }
@@ -679,6 +701,7 @@ fn show_settings_dialog(window: &ApplicationWindow, ctx: &AppContext) {
     let mac_list_del = mac_list.clone();
     let ctx_clone_del_mac = ctx.clone();
     let refresh_mac_clone_del = refresh_macros.clone();
+    let dialog_weak_del_mac = dialog.downgrade();
 
     del_mac_btn.connect_clicked(move |_| {
          if let Some(row) = mac_list_del.selected_row() {
@@ -686,6 +709,9 @@ fn show_settings_dialog(window: &ApplicationWindow, ctx: &AppContext) {
             if !name.is_empty() {
                 if let Err(e) = ctx_clone_del_mac.omnibar.macros.remove(&name) {
                      println!("Error removing macro: {}", e);
+                     if let Some(d) = dialog_weak_del_mac.upgrade() {
+                          show_error_dialog(&d, &format!("Failed to remove macro: {}", e));
+                     }
                 } else {
                      refresh_mac_clone_del();
                 }
