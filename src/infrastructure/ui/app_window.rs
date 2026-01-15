@@ -26,7 +26,7 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
     // CSS
     let provider = CssProvider::new();
     provider.load_from_data("
-        window {
+        .launcher-window {
             background-color: transparent;
         }
         .pill-container {
@@ -61,6 +61,8 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
 
     let main_box = gtk4::Box::new(Orientation::Vertical, 0);
     main_box.add_css_class("pill-container");
+    
+    window.add_css_class("launcher-window");
     window.set_child(Some(&main_box));
 
     let entry = Entry::new();
