@@ -19,7 +19,7 @@
 
 ## **3\. Architecture: The "Tree" Approach**
 
-* **The Root:** State struct managed by Arc\<Mutex\<State\>\>.  
+* **The Root:** State struct managed by `Arc<Mutex<State>>`.  
 * **The Branches (Logic):**  
   * SearchEngine: Coordinates which provider to query based on input string.  
   * AppCache: A background thread or periodic task to list .desktop files and check running status via procfs.  

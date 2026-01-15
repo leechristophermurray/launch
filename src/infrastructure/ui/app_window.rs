@@ -6,7 +6,7 @@ use gtk4::{
 use std::sync::Arc;
 use crate::application::use_cases::search_apps::SearchApps;
 use crate::application::use_cases::execute_command::ExecuteCommand;
-
+use crate::domain::model::App;
 // UI Dependencies wrapper
 #[derive(Clone)]
 pub struct AppContext {
@@ -80,7 +80,8 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
 
     // On text change -> search
     entry.connect_changed(move |e| {
-        let query = e.text();
+        let query_text = e.text();
+        let query = query_text.as_str();
         
         // Remove all children
         while let Some(child) = list_box_clone.first_child() {
@@ -95,7 +96,66 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
             return;
         }
 
-        let results = ctx_clone.search_apps.execute(&query);
+        let results = if query.starts_with("ss ") {
+
+            let cmd_input = query[3..].trim();
+             if !cmd_input.is_empty() {
+                 let wrapped_cmd = format!(
+                     "if command -v gnome-terminal >/dev/null 2>&1; then gnome-terminal -- {}; elif command -v ptyxis >/dev/null 2>&1; then ptyxis --standalone -- {}; else x-terminal-emulator -e {}; fi", 
+                     cmd_input, cmd_input, cmd_input
+                 );
+                 vec![App {
+                     name: format!("Execute: {}", cmd_input),
+                     exec_path: wrapped_cmd,
+                     icon: Some("utilities-terminal".to_string()),
+                     is_running: false,
+                 }]
+             } else {
+                 vec![]
+             }
+        } else if query.starts_with("l ") {
+            let settings_query = query[2..].trim();
+            // Define settings items
+            let items = vec![
+                App { 
+                    name: "About Launch".to_string(), 
+                    exec_path: "internal:about".to_string(), 
+                    icon: Some("help-about".to_string()), 
+                    is_running: false 
+                },
+                App { 
+                    name: "Quit".to_string(), 
+                    exec_path: "internal:quit".to_string(), 
+                    icon: Some("application-exit".to_string()), 
+                    is_running: false 
+                },
+            ];
+            
+            items.into_iter()
+                .filter(|app| app.name.to_lowercase().contains(&settings_query.to_lowercase()))
+                .collect::<Vec<App>>()
+        } else {
+            // Shortcuts Registry
+            let shortcuts = std::collections::HashMap::from([
+                ("term", "gnome-terminal"),
+                ("calc", "gnome-calculator"),
+                ("files", "nautilus"),
+                ("web", "firefox"),
+            ]);
+
+            let mut search_results = ctx_clone.search_apps.execute(query);
+            
+            if let Some(cmd) = shortcuts.get(query) {
+                 search_results.insert(0, App {
+                     name: format!("Shortcut: {}", cmd),
+                     exec_path: cmd.to_string(),
+                     icon: Some("emblem-symbolic-link".to_string()),
+                     is_running: false,
+                 });
+            }
+            
+            search_results
+        };
         
         if results.is_empty() {
              list_box_clone.set_visible(false);
@@ -152,11 +212,30 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
     entry.connect_activate(move |e| {
         if let Some(row) = list_box_exec.selected_row() {
             let idx = row.index() as usize;
-            let cmds = cmds_exec.borrow();
-            if let Some(cmd) = cmds.get(idx) {
-                ctx_clone_exec.execute_command.execute(cmd);
-                e.set_text("");
-                window_exec.minimize();
+            
+            // Clone the command to drop the borrow immediately
+            let cmd_opt = cmds_exec.borrow().get(idx).cloned();
+            
+            if let Some(cmd) = cmd_opt {
+                if cmd.starts_with("internal:") {
+                    if cmd == "internal:quit" {
+                        window_exec.close();
+                    } else if cmd == "internal:about" {
+                        let dialog = gtk4::MessageDialog::builder()
+                            .transient_for(&window_exec)
+                            .modal(true)
+                            .buttons(gtk4::ButtonsType::Ok)
+                            .text("Launch")
+                            .secondary_text("A pill-shaped launcher.\nVersion 0.1.0\n(c) 2026")
+                            .build();
+                        dialog.connect_response(|d, _| d.close());
+                        dialog.present();
+                    }
+                } else {
+                    ctx_clone_exec.execute_command.execute(&cmd);
+                    e.set_text("");
+                    window_exec.minimize();
+                }
             }
         }
     });
@@ -204,11 +283,30 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
                  if let Some(digit) = c.to_digit(10) {
                      if digit >= 1 && digit <= 9 {
                          let idx = (digit - 1) as usize;
-                         let cmds = cmds_key.borrow();
-                         if let Some(cmd) = cmds.get(idx) {
-                             ctx_key_exec.execute_command.execute(cmd);
-                             entry_key.set_text("");
-                             win_key.minimize();
+                         
+                         // Clone cmd to drop borrow, preventing panic on set_text
+                         let cmd_opt = cmds_key.borrow().get(idx).cloned();
+                         
+                         if let Some(cmd) = cmd_opt {
+                             if cmd.starts_with("internal:") {
+                                if cmd == "internal:quit" {
+                                    win_key.close();
+                                } else if cmd == "internal:about" {
+                                    let dialog = gtk4::MessageDialog::builder()
+                                        .transient_for(&win_key)
+                                        .modal(true)
+                                        .buttons(gtk4::ButtonsType::Ok)
+                                        .text("Launch")
+                                        .secondary_text("A pill-shaped launcher.\nVersion 0.1.0\n(c) 2026")
+                                        .build();
+                                    dialog.connect_response(|d, _| d.close());
+                                    dialog.present();
+                                }
+                             } else {
+                                 ctx_key_exec.execute_command.execute(&cmd);
+                                 entry_key.set_text("");
+                                 win_key.minimize();
+                             }
                              return gtk4::glib::Propagation::Stop;
                          }
                      }

@@ -16,6 +16,25 @@ A sleek, pill-shaped application launcher for Linux, built with Rust and GTK4. D
     -   `Escape`: Close the launcher.
 -   **Status Indicators**: Highlights running applications (bold text).
 
+## Advanced Usage
+
+### ⚙️ Settings
+Type `l ` (lower case L followed by space) to access internal settings:
+-   **About Launch**: View version and copyright information.
+-   **Quit**: Exit the application.
+
+### ⌨️ Terminal Execution
+Type `ss ` (double s followed by space) to immediately execute a shell command in a terminal.
+-   Example: `ss top` opens `btop`/`top` in a new terminal window.
+-   Supported terminals: `gnome-terminal`, `ptyxis`, `x-terminal-emulator`.
+
+### ⚡ Shortcuts
+Built-in query shortcuts for fast access:
+-   `term` -> `gnome-terminal`
+-   `calc` -> `gnome-calculator`
+-   `files` -> `nautilus`
+-   `web` -> `firefox`
+
 ## Tech Stack
 
 -   **Language**: [Rust](https://www.rust-lang.org/) (2024 Edition)
