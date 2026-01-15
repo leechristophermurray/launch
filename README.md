@@ -19,47 +19,56 @@ A sleek, pill-shaped application launcher for Linux, built with Rust and GTK4. D
     -   `Escape`: Close the launcher.
 -   **Status Indicators**: Highlights running applications (bold text).
 
-## Advanced Usage
+## Usage
 
-### ⚙️ Settings
+### 🚀 Prefixes
 
-![SearchSettings](docs/images/screenshots/search_settings.png)
+Launch uses strict prefixes to route your queries to different providers:
 
-Type `l ` (lower case L followed by space) to access internal settings:
--   **About Launch**: View version and copyright information.
--   **Quit**: Exit the application.
+| Prefix | Name | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `x ` | **Execute** | Run a shell command in a terminal wrapper. | `x top` (runs `gnome-terminal -- top`) |
+| `f ` | **Files** | Browse the filesystem. Use `Left`/`Right` keys to navigate. | `f /home/user/` |
+| `ss ` | **Shortcuts** | Run a saved shortcut. | `ss term` |
+| `m ` | **Macros** | Execute a sequence of commands (Macro). | `m dev-setup` |
+| `c ` | **Calc** | Solve math expressions (supports basic LaTeX!). | `c \sqrt{16} * 2` |
+| `! ` | **System** | Power operations (suspend, reboot, poweroff). | `! reboot` |
+| `l ` | **Launch** | Internal commands (Settings, About, Quit). | `l settings` |
 
-### ⌨️ Terminal Execution
+### ⚙️ Configuration
 
-![SearchSettings](docs/images/screenshots/command_launch.png)
+Launch is fully configurable via an interactive UI.
 
-Type `ss ` (double s followed by space) to immediately execute a shell command in a terminal.
--   Example: `ss top` opens `btop`/`top` in a new terminal window.
--   Supported terminals: `gnome-terminal`, `ptyxis`, `x-terminal-emulator`.
+1.  Type `l settings` (or `l set`) and hit **Enter**.
+2.  Use the **Tabs** to switch between **Shortcuts** and **Macros**.
+3.  **Add**: Click "Add" to define a new item.
+4.  **Delete**: Select an item and click "Delete" to remove it.
 
-### 📂 File Browser
+Changes are persisted to `~/.config/launch/settings.json`.
 
-![FolderWalk](docs/images/screenshots/folder_walk.png)
-
-Type `f ` (lower case F followed by space) to browse the filesystem.
--   Start typing a path (e.g., `f /home`) to filter.
--   Use `Right Arrow` to enter directories.
--   Use `Left Arrow` to go up.
--   `Enter` on a file opens it with `xdg-open`.
--   `Enter` on a directory opens it in `nautilus`.
+#### Example `settings.json`
+```json
+{
+  "shortcuts": {
+    "term": "gnome-terminal",
+    "web": "firefox"
+  },
+  "macros": [
+    {
+      "name": "morning",
+      "actions": [
+        "notify-send 'Good Morning'",
+        "firefox https://news.ycombinator.com"
+      ]
+    }
+  ]
+}
+```
 
 ### 👻 Daemon Mode
-Launch runs as a background daemon by default.
+Launch runs as a background daemon.
 -   Run `launch toggle` to show/hide the window.
--   Bind `launch toggle` to a global shortcut in your Desktop Environment settings (e.g., `Super+Space`).
--   The window automatically hides when it loses focus or when an app is launched.
-
-### ⚡ Shortcuts
-Built-in query shortcuts for fast access:
--   `term` -> `gnome-terminal`
--   `calc` -> `gnome-calculator`
--   `files` -> `nautilus`
--   `web` -> `firefox`
+-   Bind `launch toggle` to a global shortcut in your Desktop Environment (e.g., `Super+Space`).
 
 ## Tech Stack
 
