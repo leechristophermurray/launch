@@ -39,23 +39,27 @@ fn main() {
     // Keep app alive even when windows are hidden
     let hold_guard = std::rc::Rc::new(std::cell::RefCell::new(None));
 
+    let hold_guard_activate = hold_guard.clone();
+    let ctx_activate = ctx.clone();
     app.connect_activate(move |app| {
         // Ensure we hold the app to prevent exit when window hides
-        if hold_guard.borrow().is_none() {
-             *hold_guard.borrow_mut() = Some(app.hold());
+        if hold_guard_activate.borrow().is_none() {
+             *hold_guard_activate.borrow_mut() = Some(app.hold());
         }
 
         if let Some(window) = app.windows().first() {
             window.present();
         } else {
-            build_ui(app, ctx.clone());
+            build_ui(app, ctx_activate.clone());
         }
     });
 
+    let hold_guard_cmd = hold_guard.clone();
+    let ctx_cmd = ctx.clone();
     app.connect_command_line(move |app, cmdline| {
         // Ensure hold
-        if hold_guard.borrow().is_none() {
-             *hold_guard.borrow_mut() = Some(app.hold());
+        if hold_guard_cmd.borrow().is_none() {
+             *hold_guard_cmd.borrow_mut() = Some(app.hold());
         }
 
         let args = cmdline.arguments();
@@ -69,7 +73,7 @@ fn main() {
                     window.present();
                 }
             } else {
-                build_ui(app, ctx.clone());
+                build_ui(app, ctx_cmd.clone());
             }
         } else {
             // Default behavior: Open/Show
