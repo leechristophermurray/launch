@@ -1,12 +1,18 @@
 use crate::interface::ports::ICommandExecutor;
 use crate::interface::ports::IMacroRepository;
+use crate::interface::ports::ISystemPower;
 use crate::application::use_cases::omnibar::Omnibar;
+use crate::domain::model::MacroAction;
 use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
+use std::process::Command;
 
 pub struct ExecuteCommand {
     executor: Arc<dyn ICommandExecutor + Send + Sync>,
     macros: Arc<dyn IMacroRepository + Send + Sync>,
     omnibar: Arc<Omnibar>,
+    system: Arc<dyn ISystemPower + Send + Sync>,
 }
 
 impl ExecuteCommand {
@@ -14,13 +20,21 @@ impl ExecuteCommand {
         executor: Arc<dyn ICommandExecutor + Send + Sync>,
         macros: Arc<dyn IMacroRepository + Send + Sync>,
         omnibar: Arc<Omnibar>,
+        system: Arc<dyn ISystemPower + Send + Sync>,
     ) -> Self {
-        Self { executor, macros, omnibar }
+        Self { executor, macros, omnibar, system }
     }
 
     pub fn execute(&self, cmd: &str) {
         if let Some(macro_name) = cmd.strip_prefix("internal:macro:") {
              self.execute_macro(macro_name);
+             return;
+        }
+
+        if let Some(sys_action) = cmd.strip_prefix("internal:system:") {
+             if let Err(e) = self.system.execute(sys_action) {
+                 println!("System action failed: {}", e);
+             }
              return;
         }
 
@@ -31,25 +45,34 @@ impl ExecuteCommand {
         if let Some(mac) = self.macros.get(name) {
             println!("Executing Macro: {}", name);
             for action in mac.actions {
-                // Try to resolve the action as an Omnibar query first
-                let results = self.omnibar.search(&action);
-                
-                if let Some(top_result) = results.first() {
-                    let cmd_to_run = &top_result.exec_path;
-                    
-                    // Prevent infinite recursion if a macro calls itself (basic check)
-                    // "internal:macro:name"
-                    if cmd_to_run == &format!("internal:macro:{}", name) {
-                        println!("Skipping recursive macro call to self: {}", name);
-                        continue;
+                match action {
+                    MacroAction::LaunchApp(app_name) => {
+                         // Search via Omnibar to resolve "Firefox" -> "firefox"
+                         let results = self.omnibar.search(&app_name);
+                         if let Some(top) = results.first() {
+                             self.execute(&top.exec_path);
+                         }
+                    },
+                    MacroAction::Command(cmd) => {
+                         self.executor.execute(&cmd);
+                    },
+                    MacroAction::OpenUrl(url) => {
+                         let cmd = format!("xdg-open \"{}\"", url);
+                         self.executor.execute(&cmd);
+                    },
+                    MacroAction::TypeText(text) => {
+                        // Using xdotool/wtype fallback
+                        // Check for xdotool presence? Or just try?
+                        let _ = Command::new("xdotool").arg("type").arg(&text).spawn();
+                    },
+                    MacroAction::Sleep(ms) => {
+                        thread::sleep(Duration::from_millis(ms));
+                    },
+                    MacroAction::System(sys_action) => {
+                        if let Err(e) = self.system.execute(&sys_action) {
+                            println!("Macro System Action failed: {}", e);
+                        }
                     }
-
-                    // Recursively execute
-                    self.execute(cmd_to_run);
-                } else {
-                    // Fallback: If no Omnibar result (unlikely if 'x ' works, but possible),
-                    // execute raw.
-                    self.executor.execute(&action);
                 }
             }
         }

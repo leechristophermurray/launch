@@ -8,9 +8,20 @@ pub struct App {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "type", content = "value")]
+pub enum MacroAction {
+    LaunchApp(String),
+    Command(String),
+    OpenUrl(String),
+    TypeText(String),
+    Sleep(u64),
+    System(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Macro {
     pub name: String,
-    pub actions: Vec<String>,
+    pub actions: Vec<MacroAction>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

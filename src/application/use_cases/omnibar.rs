@@ -176,7 +176,7 @@ impl Omnibar {
 
         if let Some(m_query) = query.strip_prefix("m ") {
              let name = m_query.trim();
-             if let Some(mac) = self.macros.get(name) {
+             if let Some(_mac) = self.macros.get(name) {
                  return vec![App {
                      name: format!("Macro: {}", name),
                      // Encode the macro execution as a special internal command
@@ -203,7 +203,11 @@ impl Omnibar {
         if let Some(sys_query) = query.strip_prefix("! ") {
             let action = sys_query.trim();
             // predefined actions
-            let actions = vec!["suspend", "reboot", "poweroff", "lock", "hibernate"];
+            let actions = vec![
+                "suspend", "reboot", "poweroff", "lock", "hibernate",
+                "mute", "mute_mic", "mute_all",
+                "toggle_night_light", "toggle_dark_mode", "toggle_dnd"
+            ];
             return actions.into_iter()
                 .filter(|a| a.starts_with(action))
                 .map(|a| App {
@@ -260,6 +264,7 @@ impl Omnibar {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::model::MacroAction;
     use std::collections::HashMap;
     use std::sync::Mutex;
 
@@ -306,7 +311,7 @@ mod tests {
     impl IMacroRepository for MockMacro {
         fn get(&self, name: &str) -> Option<Macro> {
             if name == "test" { 
-                Some(Macro { name: "test".to_string(), actions: vec!["x echo hi".to_string()] }) 
+                Some(Macro { name: "test".to_string(), actions: vec![MacroAction::Command("x echo hi".to_string())] }) 
             } else { None }
         }
         fn get_all(&self) -> Vec<Macro> { vec![] }

@@ -11,7 +11,8 @@ use crate::infrastructure::filesystem::desktop_entry_adapter::LinuxAppRepoAdapte
 use crate::infrastructure::filesystem::procfs_adapter::ProcFsMonitorAdapter;
 use crate::infrastructure::filesystem::fs_adapter::LocalFileSystemAdapter;
 use crate::infrastructure::system::command_executor_adapter::SystemCommandExecutorAdapter;
-use crate::infrastructure::system::power_adapter::LinuxSystemPowerAdapter;
+use crate::infrastructure::services::system_adapter::SystemAdapter;
+use crate::interface::ports::ISystemPower;
 use crate::infrastructure::services::calculator_adapter::MevalCalculatorAdapter;
 use crate::infrastructure::services::settings_store::SettingsStore;
 use crate::infrastructure::services::json_shortcut_adapter::JsonShortcutAdapter;
@@ -27,7 +28,7 @@ fn main() {
     let process_monitor = Arc::new(ProcFsMonitorAdapter::new());
     let command_executor = Arc::new(SystemCommandExecutorAdapter::new());
     let fs_adapter = Arc::new(LocalFileSystemAdapter::new());
-    let power_adapter = Arc::new(LinuxSystemPowerAdapter::new());
+    let power_adapter: Arc<dyn ISystemPower + Send + Sync> = Arc::new(SystemAdapter::new());
     let calculator_adapter = Arc::new(MevalCalculatorAdapter::new());
     
     // Persistence
@@ -42,10 +43,10 @@ fn main() {
         fs_adapter,
         shortcut_adapter.clone(),
         macro_adapter.clone(),
-        power_adapter,
+        power_adapter.clone(),
         calculator_adapter,
     ));
-    let execute_command = Arc::new(ExecuteCommand::new(command_executor, macro_adapter, omnibar.clone()));
+    let execute_command = Arc::new(ExecuteCommand::new(command_executor, macro_adapter, omnibar.clone(), power_adapter.clone()));
 
     // 3. Create Context
     let ctx = AppContext {

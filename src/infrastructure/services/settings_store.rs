@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
-use crate::domain::model::Macro;
+use crate::domain::model::{Macro, MacroAction};
 
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct AppSettings {
@@ -14,7 +14,7 @@ pub struct AppSettings {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct MacroSerde {
     pub name: String,
-    pub actions: Vec<String>,
+    pub actions: Vec<MacroAction>,
 }
 
 impl From<MacroSerde> for Macro {

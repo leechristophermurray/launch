@@ -2,12 +2,13 @@ use gtk4::prelude::*;
 use gtk4::{
     Application, ApplicationWindow, CssProvider, Entry, ListBox, 
     ListBoxRow, Label, Orientation, StyleContext, gdk, Notebook,
-    TextView, TextBuffer, Button, ScrolledWindow, Window, MessageDialog, ResponseType, DialogFlags
+    TextView, TextBuffer, Button, ScrolledWindow, Window, MessageDialog, DialogFlags,
+    ComboBoxText
 };
 use std::sync::Arc;
 use crate::application::use_cases::omnibar::Omnibar;
 use crate::application::use_cases::execute_command::ExecuteCommand;
-use crate::domain::model::App;
+
 // UI Dependencies wrapper
 #[derive(Clone)]
 pub struct AppContext {
@@ -32,10 +33,13 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
             background-color: transparent;
         }
         .pill-container {
-            background-color: rgba(30, 30, 30, 0.95);
+            background-color: rgba(30, 30, 30, 0.75);
             border-radius: 30px;
             padding: 10px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            /* Attempt backdrop blur if supported by GTK/Compositor extensions */
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
         entry {
             background-color: transparent;
@@ -444,7 +448,101 @@ fn manage_shortcut_dialog(
     dialog.present();
 }
 
-use crate::domain::model::Macro;
+use crate::domain::model::{Macro, MacroAction};
+
+fn manage_action_dialog(
+    parent: &Window,
+    existing: Option<MacroAction>,
+    on_success: impl Fn(MacroAction) + 'static
+) {
+    let title = if existing.is_some() { "Edit Action" } else { "Add Action" };
+    let dialog = Window::builder()
+        .transient_for(parent)
+        .modal(true)
+        .title(title)
+        .default_width(300)
+        .default_height(200)
+        .build();
+
+    let vbox = gtk4::Box::new(Orientation::Vertical, 10);
+    vbox.set_margin_top(10);
+    vbox.set_margin_bottom(10);
+    vbox.set_margin_start(10);
+    vbox.set_margin_end(10);
+
+    let type_combo = ComboBoxText::new();
+    type_combo.append(Some("Command"), "Command");
+    type_combo.append(Some("LaunchApp"), "Launch App");
+    type_combo.append(Some("OpenUrl"), "Open URL");
+    type_combo.append(Some("TypeText"), "Type Text");
+    type_combo.append(Some("Sleep"), "Sleep (ms)");
+    type_combo.append(Some("System"), "System Action");
+    type_combo.set_active_id(Some("Command"));
+
+    let value_entry = Entry::new();
+    value_entry.set_placeholder_text(Some("Value"));
+
+    if let Some(action) = existing {
+        match &action {
+            MacroAction::Command(v) => { type_combo.set_active_id(Some("Command")); value_entry.set_text(v); },
+            MacroAction::LaunchApp(v) => { type_combo.set_active_id(Some("LaunchApp")); value_entry.set_text(v); },
+            MacroAction::OpenUrl(v) => { type_combo.set_active_id(Some("OpenUrl")); value_entry.set_text(v); },
+            MacroAction::TypeText(v) => { type_combo.set_active_id(Some("TypeText")); value_entry.set_text(v); },
+            MacroAction::Sleep(v) => { type_combo.set_active_id(Some("Sleep")); value_entry.set_text(&v.to_string()); },
+            MacroAction::System(v) => { type_combo.set_active_id(Some("System")); value_entry.set_text(v); },
+        }
+    }
+
+    let btn_box = gtk4::Box::new(Orientation::Horizontal, 10);
+    let save_btn = Button::with_label("Save");
+    let cancel_btn = Button::with_label("Cancel");
+    btn_box.append(&save_btn);
+    btn_box.append(&cancel_btn);
+
+    vbox.append(&Label::new(Some("Action Type:")));
+    vbox.append(&type_combo);
+    vbox.append(&Label::new(Some("Value:")));
+    vbox.append(&value_entry);
+    vbox.append(&btn_box);
+
+    dialog.set_child(Some(&vbox));
+
+    let dialog_weak = dialog.downgrade();
+    cancel_btn.connect_clicked(move |_| {
+        if let Some(d) = dialog_weak.upgrade() { d.close(); }
+    });
+
+    let dialog_weak_save = dialog.downgrade();
+    let type_combo_clone = type_combo.clone();
+    let value_entry_clone = value_entry.clone();
+
+    save_btn.connect_clicked(move |_| {
+        if let Some(type_id) = type_combo_clone.active_id() {
+            let val = value_entry_clone.text().to_string();
+            let action = match type_id.as_str() {
+                "Command" => Some(MacroAction::Command(val)),
+                "LaunchApp" => Some(MacroAction::LaunchApp(val)),
+                "OpenUrl" => Some(MacroAction::OpenUrl(val)),
+                "TypeText" => Some(MacroAction::TypeText(val)),
+                "Sleep" => val.parse::<u64>().ok().map(MacroAction::Sleep),
+                "System" => Some(MacroAction::System(val)),
+                _ => None,
+            };
+
+            if let Some(act) = action {
+                on_success(act);
+                if let Some(d) = dialog_weak_save.upgrade() { d.close(); }
+            } else {
+                 if let Some(d) = dialog_weak_save.upgrade() {
+                     show_error_dialog(&d, "Invalid Value for Type (e.g. Sleep requires number)");
+                 }
+            }
+        }
+    });
+
+    dialog.present();
+}
+
 fn manage_macro_dialog(
     parent: &gtk4::Window,
     ctx: &AppContext,
@@ -458,8 +556,8 @@ fn manage_macro_dialog(
         .transient_for(parent)
         .modal(true)
         .title(title)
-        .default_width(400)
-        .default_height(300)
+        .default_width(500)
+        .default_height(400)
         .build();
     
     let vbox = gtk4::Box::new(Orientation::Vertical, 10);
@@ -469,73 +567,136 @@ fn manage_macro_dialog(
     vbox.set_margin_end(10);
     
     let name_entry = Entry::new();
-    name_entry.set_placeholder_text(Some("Macro Name (e.g. 'dev-setup')"));
+    name_entry.set_placeholder_text(Some("Macro Name"));
     
-    let buffer = TextBuffer::new(None);
+    // Actions List
+    let actions_list = ListBox::new();
+    actions_list.set_selection_mode(gtk4::SelectionMode::Single);
+    actions_list.add_css_class("boxed-list");
+    let actions_scroll = ScrolledWindow::builder()
+        .child(&actions_list)
+        .min_content_height(200)
+        .vexpand(true)
+        .build();
+
+    // Store actions in a Rc<RefCell<Vec<MacroAction>>>
+    let current_actions = std::rc::Rc::new(std::cell::RefCell::new(Vec::<MacroAction>::new()));
     
     if let Some(mac) = &existing {
         name_entry.set_text(&mac.name);
-        buffer.set_text(&mac.actions.join("\n"));
+        *current_actions.borrow_mut() = mac.actions.clone();
     }
 
-    let text_view = TextView::with_buffer(&buffer);
-    text_view.set_vexpand(true);
-    let sc = ScrolledWindow::builder()
-        .child(&text_view)
-        .min_content_height(150)
-        .build();
-    
+    let refresh_actions_list = {
+        let list = actions_list.clone();
+        let acts = current_actions.clone();
+        std::rc::Rc::new(move || {
+            while let Some(child) = list.first_child() {
+                list.remove(&child);
+            }
+            for (i, action) in acts.borrow().iter().enumerate() {
+                let row = ListBoxRow::new();
+                let label_text = match action {
+                    MacroAction::Command(v) => format!("Command: {}", v),
+                    MacroAction::LaunchApp(v) => format!("Launch: {}", v),
+                    MacroAction::OpenUrl(v) => format!("Open URL: {}", v),
+                    MacroAction::TypeText(v) => format!("Type: {}", v),
+                    MacroAction::Sleep(v) => format!("Sleep: {}ms", v),
+                    MacroAction::System(v) => format!("System: {}", v),
+                };
+                let label = Label::new(Some(&label_text));
+                label.set_halign(gtk4::Align::Start);
+                label.set_margin_start(10);
+                row.set_child(Some(&label));
+                // We could store index, but row index works
+                list.append(&row);
+            }
+        })
+    };
+
+    refresh_actions_list();
+
+    // Action Buttons
+    let act_btn_box = gtk4::Box::new(Orientation::Horizontal, 5);
+    let add_act_btn = Button::with_label("Add Action");
+    let del_act_btn = Button::with_label("Remove Selected");
+    // Move up/down? Maybe later.
+    act_btn_box.append(&add_act_btn);
+    act_btn_box.append(&del_act_btn);
+
+    // Main Buttons
     let btn_box = gtk4::Box::new(Orientation::Horizontal, 10);
-    let save_btn = Button::with_label("Save");
+    let save_btn = Button::with_label("Save Macro");
     let cancel_btn = Button::with_label("Cancel");
-    
     btn_box.append(&save_btn);
     btn_box.append(&cancel_btn);
 
     vbox.append(&Label::new(Some("Macro Name:")));
     vbox.append(&name_entry);
-    vbox.append(&Label::new(Some("Actions (One command per line):")));
-    vbox.append(&sc);
+    vbox.append(&Label::new(Some("Actions:")));
+    vbox.append(&actions_scroll);
+    vbox.append(&act_btn_box);
     vbox.append(&btn_box);
     
     dialog.set_child(Some(&vbox));
 
+    // Handlers
     let dialog_weak = dialog.downgrade();
+    let dialog_weak_add = dialog.downgrade();
+    
     cancel_btn.connect_clicked(move |_| {
         if let Some(d) = dialog_weak.upgrade() { d.close(); }
     });
-    
+
+    let acts_add = current_actions.clone();
+    let refresh_add = refresh_actions_list.clone();
+    add_act_btn.connect_clicked(move |_| {
+        if let Some(parent) = dialog_weak_add.upgrade() {
+            let acts = acts_add.clone();
+            let refresh = refresh_add.clone();
+            manage_action_dialog(&parent, None, move |new_action| {
+                acts.borrow_mut().push(new_action);
+                refresh();
+            });
+        }
+    });
+
+    let acts_del = current_actions.clone();
+    let refresh_del = refresh_actions_list.clone();
+    let list_del = actions_list.clone();
+    del_act_btn.connect_clicked(move |_| {
+        if let Some(row) = list_del.selected_row() {
+            let idx = row.index() as usize;
+            if idx < acts_del.borrow().len() {
+                acts_del.borrow_mut().remove(idx);
+                refresh_del();
+            }
+        }
+    });
+
     let ctx_clone = ctx.clone();
     let dialog_weak_save = dialog.downgrade();
     let name_entry_clone = name_entry.clone();
+    let acts_save = current_actions.clone();
     let existing_unwrap = existing.clone();
-    
+
     save_btn.connect_clicked(move |_| {
         let name = name_entry_clone.text().to_string();
-        let (start, end) = buffer.bounds();
-        let text = buffer.text(&start, &end, false).to_string();
+        let actions = acts_save.borrow().clone();
         
-        let actions: Vec<String> = text.lines()
-            .map(|l| l.trim().to_string())
-            .filter(|l| !l.is_empty())
-            .collect();
-            
         let old_name = existing_unwrap.as_ref().map(|m| m.name.clone());
 
         if !name.is_empty() && !actions.is_empty() {
              if let Some(old) = &old_name {
                  if old != &name {
-                     if let Err(e) = ctx_clone.omnibar.macros.remove(old) {
-                         println!("Error removing old macro during rename: {}", e);
-                     }
+                     let _ = ctx_clone.omnibar.macros.remove(old);
                  }
              }
 
-             let new_macro = Macro { name: name.clone(), actions: actions };
+             let new_macro = Macro { name: name.clone(), actions };
              if let Err(e) = ctx_clone.omnibar.macros.add(new_macro) {
-                 println!("Error adding macro: {}", e);
                  if let Some(d) = dialog_weak_save.upgrade() {
-                     show_error_dialog(&d, &format!("Failed to save macro: {}", e));
+                     show_error_dialog(&d, &format!("Failed to save: {}", e));
                  }
              } else {
                  on_success();
