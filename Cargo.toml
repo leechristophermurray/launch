@@ -1,6 +1,6 @@
 [package]
 name = "launch"
-version = "0.3.1415"
+version = "0.3.141592"
 edition = "2024"
 description = "A pill-shaped launcher for Linux"
 license = "MIT"
