@@ -144,7 +144,6 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
             items.into_iter()
                 .filter(|app| app.name.to_lowercase().contains(&settings_query.to_lowercase()))
                 .collect::<Vec<App>>()
-        } else {
         } else if query.starts_with("f ") {
             let path_input = query[2..].trim();
             let mut search_path = path_input.to_string();
