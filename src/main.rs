@@ -1,32 +1,9 @@
-mod domain;
-mod interface;
-mod infrastructure;
-mod application;
-
 use gtk4::prelude::*;
 use gtk4::Application;
 use std::sync::Arc;
 
-use crate::infrastructure::filesystem::desktop_entry_adapter::LinuxAppRepoAdapter;
-use crate::infrastructure::filesystem::procfs_adapter::ProcFsMonitorAdapter;
-use crate::infrastructure::filesystem::fs_adapter::LocalFileSystemAdapter;
-use crate::infrastructure::system::command_executor_adapter::SystemCommandExecutorAdapter;
-use crate::infrastructure::services::system_adapter::SystemAdapter;
-use crate::infrastructure::services::window_adapter::SystemWindowAdapter;
-use crate::interface::ports::{ISystemPower, IWindowRepository, IFileIndexer};
-use crate::infrastructure::services::calculator_adapter::MevalCalculatorAdapter;
-use crate::infrastructure::services::settings_store::SettingsStore;
-use crate::infrastructure::services::json_shortcut_adapter::JsonShortcutAdapter;
-use crate::infrastructure::services::json_macro_adapter::JsonMacroAdapter;
-use crate::infrastructure::services::dictionary_adapter::SmartDictionaryAdapter;
-use crate::infrastructure::services::llm_adapter::OllamaAdapter;
-use crate::infrastructure::services::file_indexer::FileIndexerAdapter;
+use launch::*;
 
-use crate::application::use_cases::omnibar::Omnibar;
-use crate::application::use_cases::execute_command::ExecuteCommand;
-use crate::infrastructure::ui::app_window::{build_ui, AppContext};
-
-use crate::application::services::app_cache::AppCacheService;
 
 fn main() {
     // 1. Instantiate Adapters
