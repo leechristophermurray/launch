@@ -865,7 +865,7 @@ dependencies = [
 
 [[package]]
 name = "launch"
-version = "0.3.141592"
+version = "0.4.0"
 dependencies = [
  "dirs",
  "fuzzy-matcher",
