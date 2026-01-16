@@ -424,7 +424,7 @@ fn show_about_dialog(window: &ApplicationWindow) {
         .transient_for(window)
         .modal(true)
         .program_name("Launch")
-        .version("0.3.141592")
+        .version("0.4.0")
         .authors(vec!["Christopher L Murray".to_string()])
         .website("https://github.com/leechristophermurray")
         .license_type(gtk4::License::Custom)
@@ -1102,6 +1102,8 @@ fn show_settings_dialog(window: &ApplicationWindow, ctx: &AppContext) {
     ai_box.append(&warning_label);
     ai_box.append(&progress_bar);
     ai_box.append(&save_ai_btn);
+    
+    notebook.append_page(&ai_box, Some(&Label::new(Some("AI"))));
     
     let ctx_ai = ctx.clone();
     let combo_ai = model_combo.clone();
