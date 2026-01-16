@@ -1186,8 +1186,6 @@ fn show_settings_dialog(window: &ApplicationWindow, ctx: &AppContext) {
     ai_box.append(&progress_bar);
     ai_box.append(&save_ai_btn);
     
-    notebook.append_page(&ai_box, Some(&Label::new(Some("AI"))));
-    
     let ctx_ai = ctx.clone();
     let combo_ai = model_combo.clone();
     let dialog_weak_ai = dialog.downgrade();

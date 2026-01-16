@@ -16,7 +16,8 @@ A sleek, pill-shaped application launcher for Linux, built with Rust and GTK4. D
   - `Left Arrow`: Go up one directory level (File Browser).
   - `Ctrl + 1-9`: Quick launch the Nth result.
   - `Escape`: Close the launcher.
-- **Status Indicators**: Highlights running applications (bold text).
+- **Overview Grid**: Press `Down` to reveal a sectioned, horizontally scrollable grid of your apps, folders, shortcuts, and more.
+- **Status Indicators**: Highlights running applications with a blue notification dot.
 
 ## Usage
 
@@ -104,6 +105,21 @@ Changes are persisted to `~/.config/launch/settings.json`.
 Launch runs as a background daemon.
 - Run `launch toggle` to show/hide the window.
 - Bind `launch toggle` to a global shortcut in your Desktop Environment (e.g., `Super+Space`).
+- The window automatically hides when it loses focus or when an app is launched.
+
+### 📱 Overview Grid
+
+When the search bar is empty, press `Down` to open the Overview Grid. This view gives you quick access to all your content categorized into horizontal sections:
+
+- **Applications**: All installed apps. Scroll horizontally to see more.
+- **Folders**: Your home directory folders.
+- **Shortcuts / Macros**: Quick access to your defined actions.
+- **AI**: Ask the assistant.
+- **Settings / System**: Quick toggles and configuration.
+
+**Navigation**:
+- `Up` / `Down`: Jump between sections.
+- `Left` / `Right`: Scroll through items within a section.
 
 ## Tech Stack
 
