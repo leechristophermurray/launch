@@ -63,7 +63,7 @@ impl Omnibar {
              if !found_paths.is_empty() {
                  found_paths.sort();
                  found_paths.dedup();
-                 Some(found_paths.join(", "))
+                 Some(found_paths.join("\n"))
              } else {
                  None
              }
@@ -457,9 +457,6 @@ mod tests {
             Arc::new(MockFS),
             Arc::new(MockShortcuts),
             Arc::new(MockMacro),
-            Arc::new(MockWindowRepo),
-            Arc::new(MockPower),
-            Arc::new(MockCalculator),
             Arc::new(MockWindowRepo),
             Arc::new(MockPower),
             Arc::new(MockCalculator),
