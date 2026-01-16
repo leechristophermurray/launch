@@ -43,6 +43,19 @@ pub trait IDictionaryService {
     fn lookup(&self, term: &str) -> Option<String>;
 }
 
+pub trait ILLMService {
+    fn query(&self, prompt: &str, context: Option<String>) -> Result<String, String>;
+    fn list_models(&self) -> Result<Vec<String>, String>;
+    fn pull_model(&self, model: &str, on_progress: Box<dyn Fn(f64) + Send>) -> Result<(), String>;
+    fn delete_model(&self, model: &str) -> Result<(), String>;
+    fn set_model(&self, model: &str);
+}
+
+pub trait IFileIndexer {
+    fn search(&self, term: &str) -> Vec<String>;
+    fn index_home(&self);
+}
+
 pub trait IMacroRepository {
     fn get(&self, name: &str) -> Option<Macro>;
     fn get_all(&self) -> Vec<Macro>;

@@ -9,6 +9,12 @@ use crate::domain::model::{Macro, MacroAction};
 pub struct AppSettings {
     pub shortcuts: HashMap<String, String>,
     pub macros: Vec<MacroSerde>,
+    #[serde(default = "default_model")]
+    pub ai_model: String,
+}
+
+fn default_model() -> String {
+    "llama3".to_string()
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -99,6 +105,15 @@ impl SettingsStore {
         let mut data = self.cache.lock().unwrap();
         data.macros.retain(|m| m.name != name);
         drop(data);
+        self.save()
+    }
+
+    pub fn get_ai_model(&self) -> String {
+        self.cache.lock().unwrap().ai_model.clone()
+    }
+
+    pub fn set_ai_model(&self, model: String) -> Result<(), String> {
+        self.cache.lock().unwrap().ai_model = model;
         self.save()
     }
 }

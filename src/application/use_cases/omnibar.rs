@@ -1,5 +1,5 @@
 use crate::domain::model::App;
-use crate::interface::ports::{IAppRepository, IProcessMonitor, IFileSystem, ISystemPower, ICalculator, IShortcutRepository, IMacroRepository, IWindowRepository, IDictionaryService};
+use crate::interface::ports::{IAppRepository, IProcessMonitor, IFileSystem, ISystemPower, ICalculator, IShortcutRepository, IMacroRepository, IWindowRepository, IDictionaryService, ILLMService, IFileIndexer};
 use std::sync::Arc;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -14,6 +14,8 @@ pub struct Omnibar {
     power: Arc<dyn ISystemPower + Send + Sync>,
     calculator: Arc<dyn ICalculator + Send + Sync>,
     dictionary: Arc<dyn IDictionaryService + Send + Sync>,
+    pub llm: Arc<dyn ILLMService + Send + Sync>,
+    pub indexer: Arc<dyn IFileIndexer + Send + Sync>,
 }
 
 impl Omnibar {
@@ -26,8 +28,9 @@ impl Omnibar {
         window_repo: Arc<dyn IWindowRepository + Send + Sync>,
         power: Arc<dyn ISystemPower + Send + Sync>,
         calculator: Arc<dyn ICalculator + Send + Sync>,
-
         dictionary: Arc<dyn IDictionaryService + Send + Sync>,
+        llm: Arc<dyn ILLMService + Send + Sync>,
+        indexer: Arc<dyn IFileIndexer + Send + Sync>,
     ) -> Self {
         Self {
             app_repo,
@@ -39,7 +42,36 @@ impl Omnibar {
             power,
             calculator,
             dictionary,
+            llm,
+            indexer,
         }
+    }
+
+    pub fn query_ai(&self, prompt: &str) -> Result<String, String> {
+        // Simple keyword search for context
+        // We look for nouns/words in the prompt that might be folder names
+        let context = if prompt.len() > 3 {
+             let keywords: Vec<&str> = prompt.split_whitespace()
+                 .filter(|w| w.len() > 3)
+                 .collect();
+             
+             let mut found_paths = Vec::new();
+             for kw in keywords {
+                 found_paths.extend(self.indexer.search(kw));
+             }
+             
+             if !found_paths.is_empty() {
+                 found_paths.sort();
+                 found_paths.dedup();
+                 Some(found_paths.join(", "))
+             } else {
+                 None
+             }
+        } else {
+            None
+        };
+
+        self.llm.query(prompt, context)
     }
 
     pub fn search(&self, query: &str) -> Vec<App> {
@@ -226,6 +258,18 @@ impl Omnibar {
              }];
         }
 
+        if let Some(ai_query) = query.strip_prefix("? ") {
+             let prompt = ai_query.trim();
+             if prompt.is_empty() { return vec![]; }
+
+             return vec![App {
+                 name: format!("Ask AI: {}", prompt),
+                 exec_path: format!("internal:ai:{}", prompt),
+                 icon: Some("system-search".to_string()), // Or a brain icon if available
+                 is_running: false,
+             }];
+        }
+
         if let Some(m_query) = query.strip_prefix("m ") {
              let name = m_query.trim();
              if let Some(_mac) = self.macros.get(name) {
@@ -379,6 +423,21 @@ mod tests {
         }
     }
 
+    struct MockLLM;
+    impl ILLMService for MockLLM {
+        fn query(&self, _prompt: &str) -> Result<String, String> { Ok("AI response".to_string()) }
+        fn list_models(&self) -> Result<Vec<String>, String> { Ok(vec![]) }
+        fn pull_model(&self, _model: &str, _on_progress: Box<dyn Fn(f64) + Send>) -> Result<(), String> { Ok(()) }
+        fn delete_model(&self, _model: &str) -> Result<(), String> { Ok(()) }
+        fn set_model(&self, _model: &str) {}
+    }
+
+    struct MockIndexer;
+    impl IFileIndexer for MockIndexer {
+        fn search(&self, _term: &str) -> Vec<String> { vec![] }
+        fn index_home(&self) {}
+    }
+
     struct MockMacro;
     impl IMacroRepository for MockMacro {
         fn get(&self, name: &str) -> Option<Macro> {
@@ -401,7 +460,12 @@ mod tests {
             Arc::new(MockWindowRepo),
             Arc::new(MockPower),
             Arc::new(MockCalculator),
+            Arc::new(MockWindowRepo),
+            Arc::new(MockPower),
+            Arc::new(MockCalculator),
             Arc::new(MockDictionary),
+            Arc::new(MockLLM),
+            Arc::new(MockIndexer),
         )
     }
 

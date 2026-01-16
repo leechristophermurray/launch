@@ -13,12 +13,14 @@ use crate::infrastructure::filesystem::fs_adapter::LocalFileSystemAdapter;
 use crate::infrastructure::system::command_executor_adapter::SystemCommandExecutorAdapter;
 use crate::infrastructure::services::system_adapter::SystemAdapter;
 use crate::infrastructure::services::window_adapter::SystemWindowAdapter;
-use crate::interface::ports::{ISystemPower, IWindowRepository};
+use crate::interface::ports::{ISystemPower, IWindowRepository, IFileIndexer};
 use crate::infrastructure::services::calculator_adapter::MevalCalculatorAdapter;
 use crate::infrastructure::services::settings_store::SettingsStore;
 use crate::infrastructure::services::json_shortcut_adapter::JsonShortcutAdapter;
 use crate::infrastructure::services::json_macro_adapter::JsonMacroAdapter;
 use crate::infrastructure::services::dictionary_adapter::SmartDictionaryAdapter;
+use crate::infrastructure::services::llm_adapter::OllamaAdapter;
+use crate::infrastructure::services::file_indexer::FileIndexerAdapter;
 
 use crate::application::use_cases::omnibar::Omnibar;
 use crate::application::use_cases::execute_command::ExecuteCommand;
@@ -34,6 +36,9 @@ fn main() {
     let window_adapter: Arc<dyn IWindowRepository + Send + Sync> = Arc::new(SystemWindowAdapter::new());
     let calculator_adapter = Arc::new(MevalCalculatorAdapter::new());
     let dictionary_adapter = Arc::new(SmartDictionaryAdapter::new());
+    let llm_adapter = Arc::new(OllamaAdapter::new("llama3")); // Default model
+    let file_indexer = Arc::new(FileIndexerAdapter::new());
+    file_indexer.index_home();
     
     // Persistence
     let settings_store = Arc::new(SettingsStore::new());
@@ -51,6 +56,8 @@ fn main() {
         power_adapter.clone(),
         calculator_adapter,
         dictionary_adapter,
+        llm_adapter,
+        file_indexer,
     ));
     let execute_command = Arc::new(ExecuteCommand::new(command_executor, macro_adapter, omnibar.clone(), power_adapter.clone(), window_adapter));
 
@@ -58,6 +65,7 @@ fn main() {
     let ctx = AppContext {
         omnibar,
         execute_command,
+        settings: settings_store.clone(),
     };
 
     // 4. Initialize GTK Application

@@ -8,12 +8,14 @@ use gtk4::{
 use std::sync::Arc;
 use crate::application::use_cases::omnibar::Omnibar;
 use crate::application::use_cases::execute_command::ExecuteCommand;
+use crate::infrastructure::services::settings_store::SettingsStore;
 
 // UI Dependencies wrapper
 #[derive(Clone)]
 pub struct AppContext {
     pub omnibar: Arc<Omnibar>,
     pub execute_command: Arc<ExecuteCommand>,
+    pub settings: Arc<SettingsStore>,
 }
 
 pub fn build_ui(app: &Application, ctx: AppContext) {
@@ -185,6 +187,86 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
                         show_about_dialog(&window_exec);
                     } else if cmd == "internal:settings" {
                         show_settings_dialog(&window_exec, &ctx_clone_exec);
+                    } else if let Some(prompt) = cmd.strip_prefix("internal:ai:") {
+                         // 1. Clear list to show we are doing something, distinct from search results
+                         while let Some(row) = list_box_exec.row_at_index(0) {
+                             list_box_exec.remove(&row);
+                         }
+                         
+                         // 2. Add Thinking row
+                         let row = ListBoxRow::new();
+                         let box_ = gtk4::Box::new(gtk4::Orientation::Horizontal, 12);
+                         box_.set_margin_top(12);
+                         box_.set_margin_bottom(12);
+                         box_.set_margin_start(12);
+                         box_.set_margin_end(12);
+                         
+                         let spinner = gtk4::Spinner::new();
+                         spinner.start();
+                         box_.append(&spinner);
+                         
+                         let label = Label::new(Some("Thinking..."));
+                         box_.append(&label);
+                         
+                         row.set_child(Some(&box_));
+                         row.set_activatable(false);
+                         list_box_exec.append(&row);
+                         
+                         let ctx_ai_exec = ctx_clone_exec.clone();
+                         let prompt_str = prompt.to_string();
+                         let list_box_weak = list_box_exec.downgrade();
+                         
+                         let (sender, receiver) = std::sync::mpsc::channel();
+                         std::thread::spawn(move || {
+                             let response = match ctx_ai_exec.omnibar.query_ai(&prompt_str) {
+                                 Ok(r) => r,
+                                 Err(e) => format!("Error: {}", e),
+                             };
+                             let _ = sender.send(response);
+                         });
+
+                         glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
+                             if let Ok(response) = receiver.try_recv() {
+                                 if let Some(lb) = list_box_weak.upgrade() {
+                                     // Clear "Thinking" (or everything to be safe)
+                                     while let Some(r) = lb.row_at_index(0) {
+                                         lb.remove(&r);
+                                     }
+                                     
+                                     // Add Result
+                                     let row = ListBoxRow::new();
+                                     let box_ = gtk4::Box::new(gtk4::Orientation::Horizontal, 12);
+                                     box_.set_margin_top(12);
+                                     box_.set_margin_bottom(12);
+                                     box_.set_margin_start(12);
+                                     box_.set_margin_end(12);
+                                     // Top align for long text
+                                     box_.set_valign(gtk4::Align::Start);
+                                     
+                                     let icon = gtk4::Image::from_icon_name("dialog-information");
+                                     icon.set_pixel_size(24);
+                                     icon.set_valign(gtk4::Align::Start);
+                                     box_.append(&icon);
+                                     
+                                     let label = Label::new(Some(&response));
+                                     label.set_wrap(true);
+                                     label.set_wrap_mode(gtk4::pango::WrapMode::Word);
+                                     label.set_xalign(0.0);
+                                     label.set_valign(gtk4::Align::Start);
+                                     label.set_hexpand(true);
+                                     // Allow selecting text if necessary, but ListBoxRow steals clicks usually. 
+                                     // label.set_selectable(true); 
+                                     
+                                     box_.append(&label);
+                                     row.set_child(Some(&box_));
+                                     row.set_activatable(false); 
+                                     
+                                     lb.append(&row);
+                                 }
+                                 return glib::ControlFlow::Break;
+                             }
+                             glib::ControlFlow::Continue
+                         });
                     }
                 } else {
                     ctx_clone_exec.execute_command.execute(&cmd);
@@ -980,6 +1062,125 @@ fn show_settings_dialog(window: &ApplicationWindow, ctx: &AppContext) {
     });
 
     notebook.append_page(&macros_box, Some(&Label::new(Some("Macros"))));
+
+    // TAB 3: AI
+    let ai_box = gtk4::Box::new(Orientation::Vertical, 10);
+    ai_box.set_margin_top(10);
+    ai_box.set_margin_bottom(10);
+    ai_box.set_margin_start(10);
+    ai_box.set_margin_end(10);
+
+    let model_label = Label::new(Some("AI Model (Ollama)"));
+    model_label.set_halign(gtk4::Align::Start);
+    model_label.add_css_class("heading");
+
+    let model_combo = ComboBoxText::new();
+    model_combo.append(Some("llama3"), "Llama 3 (Meta)");
+    model_combo.append(Some("mistral"), "Mistral");
+    model_combo.append(Some("gemma"), "Gemma (Google)");
+    model_combo.append(Some("phi"), "Phi (Microsoft)");
+    model_combo.append(Some("tinyllama"), "TinyLlama (1.1GB - Fast)");
+    
+    // Set current
+    let current_model = ctx.settings.get_ai_model();
+    if !model_combo.set_active_id(Some(&current_model)) {
+        model_combo.set_active_id(Some("llama3"));
+    }
+
+    let warning_label = Label::new(Some("⚠ Switching models will download the new model and delete the old one."));
+    warning_label.set_wrap(true);
+    warning_label.add_css_class("dim-label");
+
+    let save_ai_btn = Button::with_label("Save & Apply");
+
+    let progress_bar = gtk4::ProgressBar::new();
+    progress_bar.set_visible(false);
+    progress_bar.set_show_text(true);
+
+    ai_box.append(&model_label);
+    ai_box.append(&model_combo);
+    ai_box.append(&warning_label);
+    ai_box.append(&progress_bar);
+    ai_box.append(&save_ai_btn);
+    
+    let ctx_ai = ctx.clone();
+    let combo_ai = model_combo.clone();
+    let dialog_weak_ai = dialog.downgrade();
+    let pb_weak = progress_bar.downgrade();
+    
+    save_ai_btn.connect_clicked(move |btn| {
+        if let Some(new_model) = combo_ai.active_id() {
+             let new_model_str = new_model.to_string();
+             let old_model_str = ctx_ai.settings.get_ai_model();
+             
+             if new_model_str != old_model_str {
+                 // Disable button
+                 btn.set_sensitive(false);
+                 btn.set_label("Downloading Model... Please Wait");
+                 
+                 let ctx_bg = ctx_ai.clone();
+                 let btn_weak = btn.downgrade();
+                 let dialog_weak_bg = dialog_weak_ai.clone();
+                 let pb_weak_bg = pb_weak.clone();
+                 
+                 let (sender, receiver) = std::sync::mpsc::channel();
+                 let (progress_tx, progress_rx) = std::sync::mpsc::channel();
+                 
+                 if let Some(pb) = pb_weak.upgrade() {
+                     pb.set_visible(true);
+                     pb.set_fraction(0.0);
+                 }
+
+                 std::thread::spawn(move || {
+                     println!("Pulling model: {}", new_model_str);
+                     // 1. Pull new with progress
+                     let _ = ctx_bg.omnibar.llm.pull_model(&new_model_str, Box::new(move |p| {
+                         let _ = progress_tx.send(p);
+                     }));
+                     
+                     println!("Deleting old model: {}", old_model_str);
+                     // 2. Delete old
+                     if !old_model_str.is_empty() {
+                         let _ = ctx_bg.omnibar.llm.delete_model(&old_model_str);
+                     }
+                     
+                     // 3. Update settings
+                     let _ = ctx_bg.settings.set_ai_model(new_model_str.clone());
+                     
+                     // 4. Update Adapter state so queries use it immediately
+                     ctx_bg.omnibar.llm.set_model(&new_model_str);
+                     
+                     let _ = sender.send(());
+                 });
+                 
+                 let pb_weak_poll = pb_weak.clone();
+                 glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
+                     // Check progress
+                     while let Ok(p) = progress_rx.try_recv() {
+                         if let Some(pb) = pb_weak_poll.upgrade() {
+                             pb.set_fraction(p);
+                             pb.set_text(Some(&format!("{:.0}%", p * 100.0)));
+                         }
+                     }
+
+                     if let Ok(_) = receiver.try_recv() {
+                         if let Some(d) = dialog_weak_bg.upgrade() {
+                             d.close();
+                         }
+                         return glib::ControlFlow::Break;
+                     }
+                     glib::ControlFlow::Continue
+                 });
+             } else {
+                 if let Some(d) = dialog_weak_ai.upgrade() { d.close(); }
+             }
+        }
+    });
+
+    ai_box.append(&warning_label);
+    ai_box.append(&save_ai_btn);
+
+    notebook.append_page(&ai_box, Some(&Label::new(Some("AI"))));
 
     dialog.set_child(Some(&notebook));
     dialog.present();

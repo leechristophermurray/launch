@@ -6,3 +6,5 @@ pub mod json_macro_adapter;
 pub mod system_adapter;
 pub mod window_adapter;
 pub mod dictionary_adapter;
+pub mod llm_adapter;
+pub mod file_indexer;
