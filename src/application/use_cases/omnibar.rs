@@ -4,6 +4,18 @@ use std::sync::Arc;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 
+#[derive(Debug, Clone)]
+pub struct OverviewData {
+    pub apps: Vec<App>,
+    pub folders: Vec<App>,
+    pub shortcuts: Vec<App>,
+    pub macros: Vec<App>,
+    pub ai: Vec<App>,
+    pub settings: Vec<App>,
+    pub system: Vec<App>,
+    pub ai_ready: bool,
+}
+
 pub struct Omnibar {
     app_repo: Arc<dyn IAppRepository + Send + Sync>,
     process_monitor: Arc<dyn IProcessMonitor + Send + Sync>,
@@ -72,6 +84,107 @@ impl Omnibar {
         };
 
         self.llm.query(prompt, context)
+    }
+
+    pub fn get_overview(&self) -> OverviewData {
+        // 1. Top Apps (Running or Most Used - simplified to just finding apps for now)
+        let mut apps = self.app_repo.find_apps();
+        self.process_monitor.update_app_status(&mut apps);
+        // Sort by running state
+        apps.sort_by(|a, b| b.is_running.cmp(&a.is_running).then_with(|| a.name.cmp(&b.name)));
+        // Take all apps now that we scroll
+        let top_apps = apps;
+
+        // 2. Folders (Home Dir)
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
+        let entries = self.fs.list_dir(&home);
+        let mut folders = vec![];
+        for name in entries {
+            if name.starts_with('.') { continue; }
+            let full_path = format!("{}/{}", home.trim_end_matches('/'), name);
+            if self.fs.is_dir(&full_path) {
+                folders.push(App {
+                    name: name.clone(),
+                    exec_path: format!("nautilus \"{}\"", full_path),
+                    icon: Some("folder".to_string()),
+                    is_running: false,
+                });
+            }
+        }
+        folders.sort_by(|a, b| a.name.cmp(&b.name));
+        let top_folders = folders.into_iter().take(8).collect();
+
+        // 3. Shortcuts
+        let all_shortcuts = self.shortcuts.get_all();
+        let mut shortcut_apps: Vec<App> = all_shortcuts.into_iter().map(|(k, v)| App {
+            name: format!("Shortcut: {}", k),
+            exec_path: v,
+            icon: Some("emblem-symbolic-link".to_string()),
+            is_running: false,
+        }).collect();
+        shortcut_apps.sort_by(|a, b| a.name.cmp(&b.name));
+
+        // 4. Macros
+        let all_macros = self.macros.get_all();
+        let mut macro_apps: Vec<App> = all_macros.into_iter().map(|m| App {
+            name: format!("Macro: {}", m.name),
+            exec_path: format!("internal:macro:{}", m.name),
+            icon: Some("system-run".to_string()),
+            is_running: false,
+        }).collect();
+        macro_apps.sort_by(|a, b| a.name.cmp(&b.name));
+
+        // 5. AI Items
+        let ai = vec![
+            App {
+                 name: "Ask AI".to_string(),
+                 exec_path: "internal:ai:".to_string(), // Empty prompt triggers input mode? Or just placeholder
+                 icon: Some("system-search".to_string()),
+                 is_running: false,
+            }
+        ];
+        let ai_ready = true;
+
+        // 6. Settings Items
+        let settings = vec![
+            App { 
+                name: "Settings".to_string(), 
+                exec_path: "internal:settings".to_string(), 
+                icon: Some("preferences-system".to_string()), 
+                is_running: false 
+            },
+            App { 
+                name: "About".to_string(), 
+                exec_path: "internal:about".to_string(), 
+                icon: Some("help-about".to_string()), 
+                is_running: false 
+            },
+            App { 
+                name: "Quit".to_string(), 
+                exec_path: "internal:quit".to_string(), 
+                icon: Some("application-exit".to_string()), 
+                is_running: false 
+            },
+        ];
+
+        // 7. System Items
+        let system = vec![
+            App { name: "Lock".to_string(), exec_path: "internal:system:lock".to_string(), icon: Some("system-lock-screen".to_string()), is_running: false },
+            App { name: "Suspend".to_string(), exec_path: "internal:system:suspend".to_string(), icon: Some("system-suspend".to_string()), is_running: false },
+            App { name: "Reboot".to_string(), exec_path: "internal:system:reboot".to_string(), icon: Some("system-reboot".to_string()), is_running: false },
+            App { name: "Power Off".to_string(), exec_path: "internal:system:poweroff".to_string(), icon: Some("system-shutdown".to_string()), is_running: false },
+        ];
+
+        OverviewData {
+            apps: top_apps,
+            folders: top_folders,
+            shortcuts: shortcut_apps,
+            macros: macro_apps,
+            ai,
+            settings,
+            system,
+            ai_ready,
+        }
     }
 
     pub fn search(&self, query: &str) -> Vec<App> {
@@ -425,7 +538,7 @@ mod tests {
 
     struct MockLLM;
     impl ILLMService for MockLLM {
-        fn query(&self, _prompt: &str) -> Result<String, String> { Ok("AI response".to_string()) }
+        fn query(&self, _prompt: &str, _context: Option<String>) -> Result<String, String> { Ok("AI response".to_string()) }
         fn list_models(&self) -> Result<Vec<String>, String> { Ok(vec![]) }
         fn pull_model(&self, _model: &str, _on_progress: Box<dyn Fn(f64) + Send>) -> Result<(), String> { Ok(()) }
         fn delete_model(&self, _model: &str) -> Result<(), String> { Ok(()) }

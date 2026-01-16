@@ -87,25 +87,31 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path();
 
+        // Create a non-hidden subdirectory to act as home, 
+        // because tempdir() creates a hidden folder starting with .tmp, 
+        // which our indexer logic correctly ignores.
+        let home_path = path.join("home");
+        std::fs::create_dir(&home_path).unwrap();
+
         // Create some files
-        let file1_path = path.join("test.txt");
+        let file1_path = home_path.join("test.txt");
         let mut file1 = File::create(&file1_path).unwrap();
         writeln!(file1, "Hello World").unwrap();
 
-        let file2_path = path.join("ignored.bin");
+        let file2_path = home_path.join("ignored.bin");
         let mut file2 = File::create(&file2_path).unwrap();
         writeln!(file2, "Binary data").unwrap();
 
-        let nested_dir = path.join("nested");
+        let nested_dir = home_path.join("nested");
         std::fs::create_dir(&nested_dir).unwrap();
         let file3_path = nested_dir.join("deep.rs");
         let mut file3 = File::create(&file3_path).unwrap();
-        writeln!(file3, "fn main() {}").unwrap();
+        writeln!(file3, "fn main() {{}}").unwrap();
 
         // Mock indexer with this temp dir as home
         let indexer = FileIndexerAdapter {
             index: Arc::new(Mutex::new(Vec::new())),
-            home_dir: path.to_path_buf(),
+            home_dir: home_path,
         };
 
         // Run index_home 

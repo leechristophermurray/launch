@@ -26,10 +26,20 @@ use crate::application::use_cases::omnibar::Omnibar;
 use crate::application::use_cases::execute_command::ExecuteCommand;
 use crate::infrastructure::ui::app_window::{build_ui, AppContext};
 
+use crate::application::services::app_cache::AppCacheService;
+
 fn main() {
     // 1. Instantiate Adapters
-    let app_repo = Arc::new(LinuxAppRepoAdapter::new());
-    let process_monitor = Arc::new(ProcFsMonitorAdapter::new());
+    let app_repo_inner = Arc::new(LinuxAppRepoAdapter::new());
+    let process_monitor_inner = Arc::new(ProcFsMonitorAdapter::new());
+    
+    // Cached Service
+    let app_cache = Arc::new(AppCacheService::new(app_repo_inner, process_monitor_inner));
+    
+    // For consistency, we treat app_cache as both Repo and Monitor for Omnibar
+    let app_repo = app_cache.clone();
+    let process_monitor = app_cache.clone();
+
     let command_executor = Arc::new(SystemCommandExecutorAdapter::new());
     let fs_adapter = Arc::new(LocalFileSystemAdapter::new());
     let power_adapter: Arc<dyn ISystemPower + Send + Sync> = Arc::new(SystemAdapter::new());
@@ -47,8 +57,8 @@ fn main() {
 
     // 2. Instantiate Use Cases
     let omnibar = Arc::new(Omnibar::new(
-        app_repo.clone(),
-        process_monitor.clone(),
+        app_repo,
+        process_monitor,
         fs_adapter,
         shortcut_adapter.clone(),
         macro_adapter.clone(),

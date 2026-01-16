@@ -3,7 +3,7 @@ use gtk4::{
     Application, ApplicationWindow, CssProvider, Entry, ListBox, 
     ListBoxRow, Label, Orientation, StyleContext, gdk, Notebook,
     TextView, TextBuffer, Button, ScrolledWindow, Window, MessageDialog, DialogFlags,
-    ComboBoxText
+    ComboBoxText, FlowBox, SelectionMode
 };
 use std::sync::Arc;
 use crate::application::use_cases::omnibar::Omnibar;
@@ -60,12 +60,37 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
             font-weight: bold;
             color: #aaddff;
         }
+        .running-dot {
+            background-color: #aaddff;
+            border-radius: 5px;
+            min-width: 8px;
+            min-height: 8px;
+            margin-right: 8px;
+            margin-bottom: 5px; /* Center with text vertically approx */
+            margin-top: 5px;
+        }
         .about-dialog {
             background-color: rgba(30, 30, 30, 0.95);
             color: white;
         }
         .about-dialog label {
             color: white;
+        }
+        .section-title {
+            font-weight: bold;
+            font-size: 14px;
+            margin-top: 10px;
+            margin-bottom: 5px;
+            color: #888888;
+        }
+        .grid-item {
+            padding: 10px;
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            margin: 2px;
+        }
+        .grid-item:hover {
+            background-color: rgba(255, 255, 255, 0.15);
         }
     ");
     StyleContext::add_provider_for_display(
@@ -88,12 +113,26 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
     list_box.set_visible(false); // Hidden initially
     main_box.append(&list_box);
 
+    // Overview Grid (Zero State)
+    let overview_scroll = ScrolledWindow::builder()
+        .min_content_height(400)
+        .hscrollbar_policy(gtk4::PolicyType::Never)
+        .visible(false)
+        .build();
+    let overview_box = gtk4::Box::new(Orientation::Vertical, 10);
+    overview_box.set_margin_start(15);
+    overview_box.set_margin_end(15);
+    overview_box.set_margin_bottom(15);
+    overview_scroll.set_child(Some(&overview_box));
+    main_box.append(&overview_scroll);
+
     let current_cmds = std::rc::Rc::new(std::cell::RefCell::new(Vec::<String>::new()));
 
     let ctx_clone = ctx.clone();
     let list_box_clone = list_box.clone();
     let window_clone = window.clone();
     let cmds_clone = current_cmds.clone();
+    let overview_scroll_clone = overview_scroll.clone();
 
     // On text change -> search
     entry.connect_changed(move |e| {
@@ -106,6 +145,7 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
         }
         
         cmds_clone.borrow_mut().clear();
+        overview_scroll_clone.set_visible(false); // Hide overview on type
 
         if query.is_empty() {
             list_box_clone.set_visible(false);
@@ -150,6 +190,11 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
                  
                  if app.is_running {
                     label.add_css_class("running-app");
+                    
+                    let dot = gtk4::Box::new(Orientation::Horizontal, 0);
+                    dot.add_css_class("running-dot");
+                    dot.set_valign(gtk4::Align::Center);
+                    row_box.append(&dot);
                  }
 
                  row_box.append(&label);
@@ -282,9 +327,11 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
     controller.set_propagation_phase(gtk4::PropagationPhase::Capture);
     let list_box_key = list_box.clone();
     let cmds_key = current_cmds.clone();
+    let entry_key = entry.clone();
+    let overview_box_key = overview_box.clone();
+    let overview_scroll_key = overview_scroll.clone();
     let ctx_key_exec = ctx.clone();
     let win_key = window.clone();
-    let entry_key = entry.clone();
 
     controller.connect_key_pressed(move |_, key, _keycode, state| {
         if key == gtk4::gdk::Key::Escape {
@@ -305,11 +352,47 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
         }
         
         if key == gtk4::gdk::Key::Down {
-             let cur_idx = list_box_key.selected_row().map(|r| r.index()).unwrap_or(-1);
-             // We don't verify max size easily here without querying children count, 
-             // but `row_at_index` returns None if out of bounds.
-             if let Some(next) = list_box_key.row_at_index(cur_idx + 1) {
-                 list_box_key.select_row(Some(&next));
+             // Logic: If list visible, navigate list. If list hidden and text empty, Show Overview.
+             if list_box_key.is_visible() {
+                 let cur_idx = list_box_key.selected_row().map(|r| r.index()).unwrap_or(-1);
+                 if let Some(next) = list_box_key.row_at_index(cur_idx + 1) {
+                     list_box_key.select_row(Some(&next));
+                 }
+             } else if entry_key.text().is_empty() {
+                 // Show Overview Grid
+                show_overview_grid(&overview_box_key, &ctx_key_exec, &win_key, &entry_key);
+                 overview_scroll_key.set_visible(true);
+                 
+                 // Focus first item with small delay to ensure widgets are realized
+                 let overview_box_focus = overview_box_key.clone();
+                 gtk4::glib::timeout_add_local(std::time::Duration::from_millis(50), move || {
+                     // overview_box children are Label, ScrolledWindow, Label, ScrolledWindow...
+                     let mut next_child = overview_box_focus.first_child();
+                     while let Some(child) = next_child {
+                         next_child = child.next_sibling();
+                         if let Ok(scroll) = child.downcast::<ScrolledWindow>() {
+                             if let Some(child_widget) = scroll.child() {
+                                 // Try to find the inner box
+                                 let target_box = if let Ok(b) = child_widget.clone().downcast::<gtk4::Box>() {
+                                      b 
+                                 } else if let Ok(vp) = child_widget.downcast::<gtk4::Viewport>() {
+                                      if let Some(vp_child) = vp.child() {
+                                          if let Ok(b) = vp_child.downcast::<gtk4::Box>() { b } else { continue; }
+                                      } else { continue; }
+                                 } else {
+                                     continue;
+                                 };
+
+                                 // Focus first button
+                                 if let Some(btn) = target_box.first_child() {
+                                     btn.grab_focus();
+                                     break; // Found and focused
+                                 }
+                             }
+                         }
+                     }
+                     gtk4::glib::ControlFlow::Break
+                 });
              }
              return gtk4::glib::Propagation::Stop;
         }
@@ -1187,3 +1270,200 @@ fn show_settings_dialog(window: &ApplicationWindow, ctx: &AppContext) {
     dialog.set_child(Some(&notebook));
     dialog.present();
 }
+
+fn add_section_items(row_box: &gtk4::Box, items: Vec<crate::domain::model::App>, ctx: &AppContext, window: &ApplicationWindow) {
+    for item in items {
+        let btn = Button::new();
+        btn.add_css_class("grid-item");
+        btn.set_width_request(100);
+        btn.set_height_request(130);
+        
+        let vbox = gtk4::Box::new(Orientation::Vertical, 5);
+        if let Some(icon_name) = &item.icon {
+            let img = gtk4::Image::new();
+            if std::path::Path::new(icon_name).exists() {
+                img.set_from_file(Some(icon_name));
+            } else {
+                img.set_icon_name(Some(icon_name));
+            }
+            img.set_pixel_size(48); // Slightly larger icon for grid
+            vbox.append(&img);
+        }
+        
+        let label = Label::new(Some(&item.name));
+        label.set_wrap(true);
+        label.set_wrap_mode(gtk4::pango::WrapMode::WordChar);
+        label.set_max_width_chars(12); // Approximate chars per line for 100px
+        label.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+        label.set_lines(3);
+        label.set_justify(gtk4::Justification::Center);
+        label.set_valign(gtk4::Align::Start);
+        vbox.append(&label);
+        
+        btn.set_child(Some(&vbox));
+        
+        let exec_cmd = item.exec_path.clone();
+        let ctx_clone = ctx.clone();
+        let win_clone = window.clone();
+        
+        btn.connect_clicked(move |_| {
+            if exec_cmd.starts_with("internal:") {
+                 // Simplified handling for now, ideally match full logic
+                 if exec_cmd == "internal:quit" {
+                     if let Some(app) = win_clone.application() { app.quit(); }
+                 } else if exec_cmd == "internal:settings" {
+                     show_settings_dialog(&win_clone, &ctx_clone);
+                 }
+            } else {
+                ctx_clone.execute_command.execute(&exec_cmd);
+                win_clone.set_visible(false);
+            }
+        });
+        
+        row_box.append(&btn);
+    }
+}
+
+fn show_overview_grid(
+    container: &gtk4::Box, 
+    ctx: &AppContext, 
+    window: &ApplicationWindow, 
+    entry: &Entry
+) {
+    // Clear existing
+    while let Some(child) = container.first_child() {
+        container.remove(&child);
+    }
+
+    let data = ctx.omnibar.get_overview();
+
+    // Helper to create sections
+    // We need to pass entry to the closure to capture it for the first section
+    let entry_weak = entry.downgrade();
+    
+    let create_section = move |title: &str, items: Vec<crate::domain::model::App>| {
+        if items.is_empty() { return; }
+        
+        let label = Label::new(Some(title));
+        label.add_css_class("section-title");
+        label.set_halign(gtk4::Align::Start);
+        container.append(&label);
+
+        // Horizontal Scroll
+        let scroll = ScrolledWindow::builder()
+            .hscrollbar_policy(gtk4::PolicyType::Automatic)
+            .vscrollbar_policy(gtk4::PolicyType::Never)
+            .min_content_height(100)
+            .build();
+
+        let row_box = gtk4::Box::new(Orientation::Horizontal, 10);
+        row_box.set_margin_bottom(10);
+        
+        // Add items
+        add_section_items(&row_box, items, ctx, window);
+        
+        scroll.set_child(Some(&row_box));
+        
+        // Navigation Controller
+        let controller = gtk4::EventControllerKey::new();
+        let entry_weak_inner = entry_weak.clone();
+
+        controller.connect_key_pressed(move |ctrl, key, _, _| {
+            let widget = ctrl.widget().expect("Controller should be attached to widget");
+            // widget is row_box
+            let row_box = widget.downcast::<gtk4::Box>().unwrap();
+            
+            // NOTE: Left/Right is handled natively by container focus if items are buttons?
+            // Actually GTK Box navigation uses Tab usually. 
+            // We might need to handle Left/Right if default doesn't work well.
+            // But let's verify Up/Down first.
+
+            if key == gtk4::gdk::Key::Up {
+                // Focus: 
+                // 1. Find ScrolledWindow parent of this box
+                // 2. Find Label sibling before ScrolledWindow
+                // 3. Find ScrolledWindow before Label?
+                
+                if let Some(scroll_parent) = row_box.parent() { // ScrolledWindow
+                     if let Some(prev_lbl) = scroll_parent.prev_sibling() { // Label
+                         if let Some(prev_scroll_widget) = prev_lbl.prev_sibling() { // ScrolledWindow
+                             if let Ok(prev_scroll) = prev_scroll_widget.downcast::<ScrolledWindow>() {
+                                 if let Some(child_widget) = prev_scroll.child() {
+                                     // child_widget is the viewport or the box? 
+                                     // Usually viewport if using adjustments, but here we set_child box directly
+                                     // Let's assume it's the Box (or Viewport -> Box). 
+                                     // If ScrolledWindow wraps it in a Viewport automatically...
+                                     
+                                     // The built child is direct if we use set_child (GTK4).
+                                     // Let's try casting to Box.
+                                     
+                                     let target_box = if let Ok(b) = child_widget.clone().downcast::<gtk4::Box>() {
+                                         b 
+                                     } else if let Ok(vp) = child_widget.downcast::<gtk4::Viewport>() {
+                                          if let Some(vp_child) = vp.child() {
+                                              if let Ok(b) = vp_child.downcast::<gtk4::Box>() { b } else { return gtk4::glib::Propagation::Proceed; }
+                                          } else { return gtk4::glib::Propagation::Proceed; }
+                                     } else {
+                                         return gtk4::glib::Propagation::Proceed;
+                                     };
+
+                                     // Focus first child of target box
+                                     if let Some(first) = target_box.first_child() {
+                                         first.grab_focus();
+                                         return gtk4::glib::Propagation::Stop;
+                                     }
+                                 }
+                             }
+                         }
+                     }
+                     // Top of list? -> Focus Entry
+                     if let Some(entry) = entry_weak_inner.upgrade() {
+                         entry.grab_focus();
+                         entry.set_position(-1);
+                         return gtk4::glib::Propagation::Stop;
+                     }
+                }
+            } else if key == gtk4::gdk::Key::Down {
+                if let Some(scroll_parent) = row_box.parent() { 
+                     if let Some(next_lbl) = scroll_parent.next_sibling() { // Label
+                         if let Some(next_scroll_widget) = next_lbl.next_sibling() { // ScrolledWindow
+                             // Focus it
+                             if let Ok(next_scroll) = next_scroll_widget.downcast::<ScrolledWindow>() {
+                                 if let Some(child_widget) = next_scroll.child() {
+                                     let target_box = if let Ok(b) = child_widget.clone().downcast::<gtk4::Box>() {
+                                         b 
+                                     } else if let Ok(vp) = child_widget.downcast::<gtk4::Viewport>() {
+                                          if let Some(vp_child) = vp.child() {
+                                              if let Ok(b) = vp_child.downcast::<gtk4::Box>() { b } else { return gtk4::glib::Propagation::Proceed; }
+                                          } else { return gtk4::glib::Propagation::Proceed; }
+                                     } else {
+                                         return gtk4::glib::Propagation::Proceed;
+                                     };
+
+                                     if let Some(first) = target_box.first_child() {
+                                         first.grab_focus();
+                                         return gtk4::glib::Propagation::Stop;
+                                     }
+                                 }
+                             }
+                         }
+                     }
+                }
+            }
+            
+            gtk4::glib::Propagation::Proceed
+        });
+
+        row_box.add_controller(controller);
+        container.append(&scroll);
+    };
+
+    create_section("Applications", data.apps);
+    create_section("Folders", data.folders);
+    create_section("Shortcuts", data.shortcuts);
+    create_section("Macros", data.macros);
+    create_section("AI", data.ai);
+    create_section("Settings", data.settings);
+    create_section("System", data.system);
+}
+

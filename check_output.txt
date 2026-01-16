@@ -1,16 +1,33 @@
-    Checking launch v0.3.141592 (/home/leechristophermurray/Projects/launch)
-error[E0412]: cannot find type `Window` in this scope
-  --> src/interface/ports.rs:50:39
-   |
-50 |     fn get_open_windows(&self) -> Vec<Window>;
-   |                                       ^^^^^^ not found in this scope
-   |
-help: consider importing one of these structs
-   |
- 1 + use crate::domain::model::Window;
-   |
- 1 + use gtk4::Window;
-   |
+    Checking launch v0.4.0 (/home/leechristophermurray/Projects/launch)
+error[E0425]: cannot find value `win_key` in this scope
+   --> src/infrastructure/ui/app_window.rs:323:14
+    |
+323 |              win_key.set_visible(false);
+    |              ^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `win_key` in this scope
+   --> src/infrastructure/ui/app_window.rs:348:72
+    |
+348 |                  show_overview_grid(&overview_box_key, &ctx_key_exec, &win_key);
+    |                                                                        ^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `win_key` in this scope
+   --> src/infrastructure/ui/app_window.rs:402:56
+    |
+402 | ...                   if let Some(app) = win_key.application() { app.quit(); }
+    |                                          ^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `win_key` in this scope
+   --> src/infrastructure/ui/app_window.rs:404:56
+    |
+404 | ...                   show_about_dialog(&win_key);
+    |                                          ^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `win_key` in this scope
+   --> src/infrastructure/ui/app_window.rs:409:34
+    |
+409 | ...                   win_key.set_visible(false); // Hide on launch
+    |                       ^^^^^^^ not found in this scope
 
 warning: unused imports: `TextBuffer` and `TextView`
  --> src/infrastructure/ui/app_window.rs:5:5
@@ -21,21 +38,69 @@ warning: unused imports: `TextBuffer` and `TextView`
   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
 
 warning: use of deprecated associated function `gtk4::style_context::<impl gtk4::StyleContext>::add_provider_for_display`: Use gtk::style_context_add_provider_for_display instead.
-  --> src/infrastructure/ui/app_window.rs:69:19
+  --> src/infrastructure/ui/app_window.rs:87:19
    |
-69 |     StyleContext::add_provider_for_display(
+87 |     StyleContext::add_provider_for_display(
    |                   ^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: `#[warn(deprecated)]` on by default
 
-warning: unused variable: `i`
-   --> src/infrastructure/ui/app_window.rs:597:18
+error[E0282]: type annotations needed
+   --> src/infrastructure/ui/app_window.rs:402:80
     |
-597 |             for (i, action) in acts.borrow().iter().enumerate() {
+402 | ...                   if let Some(app) = win_key.application() { app.quit(); }
+    |                                                                  ^^^ cannot infer type
+
+error[E0599]: the method `append` exists for reference `&FlowBox`, but its trait bounds were not satisfied
+    --> src/infrastructure/ui/app_window.rs:1266:14
+     |
+1266 |           flow.append(&btn);
+     |                ^^^^^^
+     |
+    ::: /home/leechristophermurray/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-0.9.7/src/auto/flow_box.rs:17:1
+     |
+  17 | / glib::wrapper! {
+  18 | |     #[doc(alias = "GtkFlowBox")]
+  19 | |     pub struct FlowBox(Object<ffi::GtkFlowBox>) @extends Widget, @implements Accessible, Buildable, ConstraintTarget, Orientable;
+...    |
+  24 | | }
+     | |_- doesn't satisfy 6 bounds
+     |
+     = note: the following trait bounds were not satisfied:
+             `FlowBox: IsA<UnixFDList>`
+             which is required by `FlowBox: gtk4::prelude::UnixFDListExtManual`
+             `FlowBox: IsA<gtk4::Box>`
+             which is required by `FlowBox: gtk4::prelude::BoxExt`
+             `FlowBox: IsA<MultiFilter>`
+             which is required by `FlowBox: gtk4::prelude::MultiFilterExt`
+             `&FlowBox: IsA<UnixFDList>`
+             which is required by `&FlowBox: gtk4::prelude::UnixFDListExtManual`
+             `&FlowBox: IsA<gtk4::Box>`
+             which is required by `&FlowBox: gtk4::prelude::BoxExt`
+             `&FlowBox: IsA<MultiFilter>`
+             which is required by `&FlowBox: gtk4::prelude::MultiFilterExt`
+
+warning: unused variable: `i`
+   --> src/infrastructure/ui/app_window.rs:721:18
+    |
+721 |             for (i, action) in acts.borrow().iter().enumerate() {
     |                  ^ help: if this is intentional, prefix it with an underscore: `_i`
     |
     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
 
-For more information about this error, try `rustc --explain E0412`.
-warning: `launch` (bin "launch") generated 3 warnings
-error: could not compile `launch` (bin "launch") due to 1 previous error; 3 warnings emitted
+warning: unused variable: `btn_weak`
+    --> src/infrastructure/ui/app_window.rs:1161:22
+     |
+1161 |                  let btn_weak = btn.downgrade();
+     |                      ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_btn_weak`
+
+warning: unused variable: `pb_weak_bg`
+    --> src/infrastructure/ui/app_window.rs:1163:22
+     |
+1163 |                  let pb_weak_bg = pb_weak.clone();
+     |                      ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_pb_weak_bg`
+
+Some errors have detailed explanations: E0282, E0425, E0599.
+For more information about an error, try `rustc --explain E0282`.
+warning: `launch` (bin "launch") generated 5 warnings
+error: could not compile `launch` (bin "launch") due to 7 previous errors; 5 warnings emitted

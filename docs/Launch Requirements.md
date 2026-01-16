@@ -44,16 +44,22 @@
   * Up/Down arrows to navigate the list.  
   * Enter to execute the top or selected item.  
   * Esc to close the launcher.
-  * upon showing/revealing the search/omnibar, if the user has not typed anything, then presses the down arrow key, we'll reveal a sectioned  vertically scrollable grid of;
-    * Applications: all of the apps on the system, sorted by name. This is based on the .desktop files available.
-    * Folders: user folders form their home directory.
-    * Shortcuts: internal shortcuts for launch.
-    * Macros: internal macros for launch.
-    * AI: internal AI for launch.
-    * Settings: internal settings for launch.
-    * System: internal system settings from GNOME
-    
+  * upon showing/revealing the search/omnibar, if the user has not typed anything, then presses the:
+    * up arrow key, we'll reveal a sectioned  vertically scrollable grid of;
+      * Settings: internal settings for launch.
+      * System: internal system settings from GNOME
+
+      This acts much like a notification shade.
+
+    * down arrow key, we'll reveal a sectioned  vertically scrollable grid of;
+      * Applications: all of the apps on the system, sorted by name. This is based on the .desktop files available. **Current running aplications will be highlighted with a notification dot to show running status.**
+      * Folders: user folders form their home directory.
+      * Shortcuts: internal shortcuts for launch.
+      * Macros: internal macros for launch.
+      * AI: internal AI for launch.
+
     The user will be able to use their arrow keys to navigate the grid and press enter to select an item or type to filter the grid.
+    Notable, each section will be horizontally scrollable. This, especially, ensures the Applications section is not truncated.
 
 ## **3\. Architecture: The "Tree" Approach**
 
