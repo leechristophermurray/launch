@@ -541,7 +541,7 @@ fn show_about_dialog(window: &ApplicationWindow) {
         .transient_for(window)
         .modal(true)
         .program_name("Launch")
-        .version("0.5.0")
+        .version("0.6.0")
         .authors(vec!["Christopher L Murray".to_string()])
         .website("https://github.com/leechristophermurray")
         .license_type(gtk4::License::Custom)
