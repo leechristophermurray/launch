@@ -22,8 +22,8 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
     let window = ApplicationWindow::builder()
         .application(app)
         .title("Launch")
-        .default_width(600)
-        .default_height(50) // Starts small
+        .default_width(630)  // 600 + 15*2 for margin
+        .default_height(80)  // 50 + 15*2 for margin
         .decorated(false) // Pill shape requirement
         .resizable(false)
         .build();
@@ -38,6 +38,7 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
             background-color: rgba(30, 30, 30, 0.75);
             border-radius: 30px;
             padding: 10px;
+            margin: 15px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
             /* Attempt backdrop blur if supported by GTK/Compositor extensions */
             backdrop-filter: blur(20px);
