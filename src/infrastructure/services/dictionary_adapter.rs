@@ -1,4 +1,4 @@
-use crate::interface::ports::IDictionaryService;
+use crate::domain::ports::IDictionaryService;
 use webster;
 
 pub struct SmartDictionaryAdapter;

@@ -1,4 +1,4 @@
-use crate::interface::ports::ICommandExecutor;
+use crate::domain::ports::ICommandExecutor;
 use std::process::Command;
 
 pub struct SystemCommandExecutorAdapter;

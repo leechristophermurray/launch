@@ -1,5 +1,5 @@
 use crate::domain::model::{App, Macro, MacroAction, Window};
-use crate::interface::ports::*;
+use crate::domain::ports::*;
 use crate::application::use_cases::omnibar::Omnibar;
 use std::collections::HashMap;
 use std::sync::Arc;

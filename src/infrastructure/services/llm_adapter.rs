@@ -1,4 +1,4 @@
-use crate::interface::ports::ILLMService;
+use crate::domain::ports::ILLMService;
 use ollama_rs::Ollama;
 use ollama_rs::generation::completion::request::GenerationRequest;
 use std::sync::Arc;

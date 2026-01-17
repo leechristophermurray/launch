@@ -1,5 +1,5 @@
 // Calculator adapter with extensive LaTeX preprocessing
-use crate::interface::ports::ICalculator;
+use crate::domain::ports::ICalculator;
 use meval;
 use regex::Regex;
 

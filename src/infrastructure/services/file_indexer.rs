@@ -1,4 +1,4 @@
-use crate::interface::ports::IFileIndexer;
+use crate::domain::ports::IFileIndexer;
 use walkdir::WalkDir;
 use std::sync::{Arc, Mutex};
 use std::path::PathBuf;

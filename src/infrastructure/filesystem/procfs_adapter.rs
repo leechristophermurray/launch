@@ -1,5 +1,5 @@
 use crate::domain::model::App;
-use crate::interface::ports::IProcessMonitor;
+use crate::domain::ports::IProcessMonitor;
 use std::fs;
 
 pub struct ProcFsMonitorAdapter;

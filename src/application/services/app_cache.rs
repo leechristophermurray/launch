@@ -1,5 +1,5 @@
 use crate::domain::model::App;
-use crate::interface::ports::{IAppRepository, IProcessMonitor};
+use crate::domain::ports::{IAppRepository, IProcessMonitor};
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;

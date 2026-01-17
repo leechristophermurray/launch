@@ -1,4 +1,4 @@
-use crate::interface::ports::IFileSystem;
+use crate::domain::ports::IFileSystem;
 use std::path::Path;
 
 pub struct LocalFileSystemAdapter;

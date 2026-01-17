@@ -95,7 +95,7 @@ impl SystemAdapter {
         Self::run_cmd("sh", &["-c", script]);
     }
 }
-use crate::interface::ports::ISystemPower;
+use crate::domain::ports::ISystemPower;
 
 impl ISystemPower for SystemAdapter {
     fn execute(&self, action: &str) -> Result<(), String> {

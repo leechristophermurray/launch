@@ -15,7 +15,7 @@ pub use infrastructure::filesystem::fs_adapter::LocalFileSystemAdapter;
 pub use infrastructure::system::command_executor_adapter::SystemCommandExecutorAdapter;
 pub use infrastructure::services::system_adapter::SystemAdapter;
 pub use infrastructure::services::window_adapter::SystemWindowAdapter;
-pub use interface::ports::{ISystemPower, IWindowRepository, IFileIndexer, IAppRepository, IProcessMonitor, IFileSystem, IShortcutRepository, IMacroRepository, ICalculator, IDictionaryService, ILLMService};
+pub use domain::ports::{ISystemPower, IWindowRepository, IFileIndexer, IAppRepository, IProcessMonitor, IFileSystem, IShortcutRepository, IMacroRepository, ICalculator, IDictionaryService, ILLMService};
 pub use infrastructure::services::calculator_adapter::MevalCalculatorAdapter;
 pub use infrastructure::services::settings_store::SettingsStore;
 pub use infrastructure::services::json_shortcut_adapter::JsonShortcutAdapter;

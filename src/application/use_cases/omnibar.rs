@@ -1,5 +1,5 @@
 use crate::domain::model::App;
-use crate::interface::ports::{IAppRepository, IProcessMonitor, IFileSystem, ISystemPower, ICalculator, IShortcutRepository, IMacroRepository, IWindowRepository, IDictionaryService, ILLMService, IFileIndexer};
+use crate::domain::ports::{IAppRepository, IProcessMonitor, IFileSystem, ISystemPower, ICalculator, IShortcutRepository, IMacroRepository, IWindowRepository, IDictionaryService, ILLMService, IFileIndexer};
 use std::sync::Arc;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;

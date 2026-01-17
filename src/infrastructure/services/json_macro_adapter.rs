@@ -1,4 +1,4 @@
-use crate::interface::ports::IMacroRepository;
+use crate::domain::ports::IMacroRepository;
 use crate::infrastructure::services::settings_store::SettingsStore;
 use crate::domain::model::Macro;
 use std::sync::Arc;

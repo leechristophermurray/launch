@@ -1,5 +1,5 @@
 use crate::domain::model::App;
-use crate::interface::ports::IAppRepository;
+use crate::domain::ports::IAppRepository;
 use walkdir::WalkDir;
 use std::fs;
 use std::path::Path;

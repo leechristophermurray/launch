@@ -1,4 +1,4 @@
-use crate::interface::ports::IShortcutRepository;
+use crate::domain::ports::IShortcutRepository;
 use std::collections::HashMap;
 
 pub struct StaticShortcutAdapter {

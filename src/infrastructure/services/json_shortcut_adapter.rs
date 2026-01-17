@@ -1,4 +1,4 @@
-use crate::interface::ports::IShortcutRepository;
+use crate::domain::ports::IShortcutRepository;
 use crate::infrastructure::services::settings_store::SettingsStore;
 use std::sync::Arc;
 use std::collections::HashMap;

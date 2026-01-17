@@ -1,4 +1,4 @@
-use crate::interface::ports::IWindowRepository;
+use crate::domain::ports::IWindowRepository;
 use crate::domain::model::Window;
 use std::process::Command;
 

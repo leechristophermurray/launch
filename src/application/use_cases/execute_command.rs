@@ -1,7 +1,7 @@
-use crate::interface::ports::ICommandExecutor;
-use crate::interface::ports::IMacroRepository;
-use crate::interface::ports::ISystemPower;
-use crate::interface::ports::IWindowRepository;
+use crate::domain::ports::ICommandExecutor;
+use crate::domain::ports::IMacroRepository;
+use crate::domain::ports::ISystemPower;
+use crate::domain::ports::IWindowRepository;
 use crate::application::use_cases::omnibar::Omnibar;
 use crate::domain::model::MacroAction;
 use std::sync::Arc;
