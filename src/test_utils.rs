@@ -78,6 +78,17 @@ impl IFileIndexer for MockIndexer {
     fn index_home(&self) {}
 }
 
+pub struct MockTimeService;
+impl ITimeService for MockTimeService {
+    fn start_timer(&self, _duration_secs: u64) {}
+    fn start_pomodoro(&self) {}
+    fn start_stopwatch(&self) {}
+    fn get_status(&self) -> (String, bool) { ("".to_string(), false) }
+    fn stop(&self) {}
+    fn toggle_pause(&self) {}
+    fn restart(&self) {}
+}
+
 pub struct MockMacro;
 impl IMacroRepository for MockMacro {
     fn get(&self, name: &str) -> Option<Macro> {
@@ -103,5 +114,6 @@ pub fn create_omnibar() -> Omnibar {
         Arc::new(MockDictionary),
         Arc::new(MockLLM),
         Arc::new(MockIndexer),
+        Arc::new(MockTimeService),
     )
 }

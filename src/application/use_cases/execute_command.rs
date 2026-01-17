@@ -2,6 +2,7 @@ use crate::domain::ports::ICommandExecutor;
 use crate::domain::ports::IMacroRepository;
 use crate::domain::ports::ISystemPower;
 use crate::domain::ports::IWindowRepository;
+use crate::domain::ports::ITimeService;
 use crate::application::use_cases::omnibar::Omnibar;
 use crate::domain::model::MacroAction;
 use std::sync::Arc;
@@ -15,6 +16,7 @@ pub struct ExecuteCommand {
     omnibar: Arc<Omnibar>,
     system: Arc<dyn ISystemPower + Send + Sync>,
     window_repo: Arc<dyn IWindowRepository + Send + Sync>,
+    time: Arc<dyn ITimeService + Send + Sync>,
 }
 
 impl ExecuteCommand {
@@ -24,8 +26,9 @@ impl ExecuteCommand {
         omnibar: Arc<Omnibar>,
         system: Arc<dyn ISystemPower + Send + Sync>,
         window_repo: Arc<dyn IWindowRepository + Send + Sync>,
+        time: Arc<dyn ITimeService + Send + Sync>,
     ) -> Self {
-        Self { executor, macros, omnibar, system, window_repo }
+        Self { executor, macros, omnibar, system, window_repo, time }
     }
 
     pub fn execute(&self, cmd: &str) {
@@ -44,6 +47,25 @@ impl ExecuteCommand {
         if let Some(win_id) = cmd.strip_prefix("internal:window:") {
              if let Err(e) = self.window_repo.focus_window(win_id) {
                  println!("Failed to focus window: {}", e);
+             }
+             return;
+        }
+
+        if let Some(time_cmd) = cmd.strip_prefix("internal:time:") {
+             if time_cmd == "pomodoro" {
+                 self.time.start_pomodoro();
+             } else if time_cmd == "stopwatch" {
+                 self.time.start_stopwatch();
+             } else if time_cmd == "pause" {
+                 self.time.toggle_pause();
+             } else if time_cmd == "stop" {
+                 self.time.stop();
+             } else if time_cmd == "restart" {
+                 self.time.restart();
+             } else if let Some(secs_str) = time_cmd.strip_prefix("timer:") {
+                 if let Ok(secs) = secs_str.parse::<u64>() {
+                     self.time.start_timer(secs);
+                 }
              }
              return;
         }

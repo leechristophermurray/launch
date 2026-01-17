@@ -26,6 +26,7 @@ fn main() {
     let llm_adapter = Arc::new(OllamaAdapter::new("llama3")); // Default model
     let file_indexer = Arc::new(FileIndexerAdapter::new());
     file_indexer.index_home();
+    let time_adapter: Arc<dyn ITimeService + Send + Sync> = Arc::new(TimeAdapter::new());
     
     // Persistence
     let settings_store = Arc::new(SettingsStore::new());
@@ -45,8 +46,9 @@ fn main() {
         dictionary_adapter,
         llm_adapter,
         file_indexer,
+        time_adapter.clone(),
     ));
-    let execute_command = Arc::new(ExecuteCommand::new(command_executor, macro_adapter, omnibar.clone(), power_adapter.clone(), window_adapter));
+    let execute_command = Arc::new(ExecuteCommand::new(command_executor, macro_adapter, omnibar.clone(), power_adapter.clone(), window_adapter, time_adapter));
 
     // 3. Create Context
     let ctx = AppContext {

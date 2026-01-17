@@ -67,3 +67,14 @@ pub trait IWindowRepository {
     fn get_open_windows(&self) -> Vec<Window>;
     fn focus_window(&self, id: &str) -> Result<(), String>;
 }
+
+pub trait ITimeService {
+    fn start_timer(&self, duration_secs: u64);
+    fn start_pomodoro(&self);
+    fn start_stopwatch(&self);
+    // Returns (Label, is_active) - e.g. ("24:59", true) or ("", false)
+    fn get_status(&self) -> (String, bool);
+    fn stop(&self);
+    fn toggle_pause(&self);
+    fn restart(&self);
+}

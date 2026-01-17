@@ -37,7 +37,13 @@
   * `c `: calculate as the user types, with support for latex math notation.and auto complete of latex math notation when the `\` is typed.
   * `d `: define words typed in the omnibar/searchbar. pressing enter launched a google search for the definition.
   * `w `: window and workspace switcher. A visual list of open windows categorized by GNOME Workspace. User could type "Firefox" and see results for "Switch to Firefox (Workspace 2)" or "New Firefox Window (Current Workspace)."
-  * `
+  * `t`: time related actions. Actions are as below
+    * pomodoro
+    * timer
+    * stopwatch
+
+    ongoing time actions would cause a time status to be displayed in the top-right of the search/omnibar. This would be a simple icon and the time remaining/elapsed.
+
   * Each result should have sub-actions shown when `ctrl + enter` is pressed. This would pull from the result's type and the current context (e.g., for a file: "Open," "Show in Folder," "Email as Attachment").
   * `shift + super + touchpadoff`: as the default keyboard shortcut that brings up the search bar. The is reconfigurable in the settings.
 * **Navigation:**  

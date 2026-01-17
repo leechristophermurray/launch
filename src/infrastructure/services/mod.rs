@@ -8,3 +8,4 @@ pub mod window_adapter;
 pub mod dictionary_adapter;
 pub mod llm_adapter;
 pub mod file_indexer;
+pub mod time_adapter;

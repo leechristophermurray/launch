@@ -25,6 +25,7 @@ fn test_ui_search_flow() {
          omnibar.clone(),
          power,
          win_repo,
+         Arc::new(MockTimeService),
     ));
 
     let ctx = AppContext {
@@ -70,12 +71,16 @@ fn test_ui_search_flow() {
     let main_box = window.child().expect("Main box missing")
         .downcast::<gtk4::Box>().expect("Not a box");
     
-    // Entry is the first child
-    let entry = main_box.first_child().expect("Entry missing")
+    // Entry is inside a horizontal box (first child of main_box)
+    let entry_box = main_box.first_child().expect("Entry Box missing")
+        .downcast::<gtk4::Box>().expect("Not a box");
+
+    // Entry is the first child of entry_box
+    let entry = entry_box.first_child().expect("Entry missing")
         .downcast::<gtk4::Entry>().expect("Not an entry");
     
-    // ListBox is the second child (after Entry, before ScrolledWindow)
-    let list_box = entry.next_sibling().expect("ListBox missing")
+    // ListBox is the second child of MAIN BOX
+    let list_box = entry_box.next_sibling().expect("ListBox missing")
         .downcast::<gtk4::ListBox>().expect("Not a ListBox");
 
     // 5. Verify Initial State (Hidden ListBox)

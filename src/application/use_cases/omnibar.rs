@@ -1,5 +1,5 @@
 use crate::domain::model::App;
-use crate::domain::ports::{IAppRepository, IProcessMonitor, IFileSystem, ISystemPower, ICalculator, IShortcutRepository, IMacroRepository, IWindowRepository, IDictionaryService, ILLMService, IFileIndexer};
+use crate::domain::ports::{IAppRepository, IProcessMonitor, IFileSystem, ISystemPower, ICalculator, IShortcutRepository, IMacroRepository, IWindowRepository, IDictionaryService, ILLMService, IFileIndexer, ITimeService};
 use std::sync::Arc;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -28,6 +28,7 @@ pub struct Omnibar {
     dictionary: Arc<dyn IDictionaryService + Send + Sync>,
     pub llm: Arc<dyn ILLMService + Send + Sync>,
     pub indexer: Arc<dyn IFileIndexer + Send + Sync>,
+    pub time: Arc<dyn ITimeService + Send + Sync>,
 }
 
 impl Omnibar {
@@ -43,6 +44,7 @@ impl Omnibar {
         dictionary: Arc<dyn IDictionaryService + Send + Sync>,
         llm: Arc<dyn ILLMService + Send + Sync>,
         indexer: Arc<dyn IFileIndexer + Send + Sync>,
+        time: Arc<dyn ITimeService + Send + Sync>,
     ) -> Self {
         Self {
             app_repo,
@@ -56,6 +58,7 @@ impl Omnibar {
             dictionary,
             llm,
             indexer,
+            time,
         }
     }
 
@@ -425,6 +428,92 @@ impl Omnibar {
                     icon: Some("system-shutdown".to_string()),
                     is_running: false
                 }).collect();
+        }
+
+        if let Some(t_query) = query.strip_prefix("t ") {
+            let action = t_query.trim();
+            let mut results = vec![];
+            
+            // Check status for controls
+            let (_, is_active) = self.time.get_status();
+            if is_active && !action.is_empty() {
+                if action == "stop" || "stop".starts_with(action) {
+                     results.push(App {
+                         name: "Stop Timer".to_string(),
+                         exec_path: "internal:time:stop".to_string(),
+                         icon: Some("media-playback-stop".to_string()),
+                         is_running: false
+                     });
+                }
+                if action == "pause" || "pause".starts_with(action) || action == "resume" || "resume".starts_with(action) {
+                     results.push(App {
+                         name: "Pause/Resume".to_string(),
+                         exec_path: "internal:time:pause".to_string(),
+                         icon: Some("media-playback-pause".to_string()),
+                         is_running: false
+                     });
+                }
+                if action == "restart" || "restart".starts_with(action) {
+                     results.push(App {
+                         name: "Restart".to_string(),
+                         exec_path: "internal:time:restart".to_string(),
+                         icon: Some("view-refresh".to_string()),
+                         is_running: false
+                     });
+                }
+            }
+
+            // t timer 10 (10 mins)
+            if action.starts_with("timer ") {
+                 let duration_str = action.strip_prefix("timer ").unwrap_or("").trim();
+                 let duration = if let Ok(val) = duration_str.parse::<u64>() {
+                     val
+                 } else {
+                     // Parse 10m, 1h? Simplified to minutes for now if number
+                     if let Some(mins) = duration_str.strip_suffix("m") {
+                         mins.trim().parse::<u64>().unwrap_or(0)
+                     } else {
+                         duration_str.parse::<u64>().unwrap_or(0)
+                     }
+                 };
+                 
+                 if duration > 0 {
+                     results.push(App {
+                         name: format!("Start Timer: {} minutes", duration),
+                         exec_path: format!("internal:time:timer:{}", duration * 60), // secs
+                         icon: Some("alarm-timer".to_string()), // icon?
+                         is_running: false
+                     });
+                 }
+            } else if action == "pomodoro" || "pomodoro".starts_with(action) {
+                 results.push(App {
+                     name: "Start Pomodoro (25m)".to_string(),
+                     exec_path: "internal:time:pomodoro".to_string(),
+                     icon: Some("alarm-timer".to_string()),
+                     is_running: false
+                 });
+            } else if action == "stopwatch" || "stopwatch".starts_with(action) {
+                 results.push(App {
+                     name: "Start Stopwatch".to_string(),
+                     exec_path: "internal:time:stopwatch".to_string(),
+                     icon: Some("alarm-timer".to_string()),
+                     is_running: false
+                 });
+            }
+            
+            // Allow just typing "t" to see options
+            if action.is_empty() {
+                 if is_active {
+                     results.push(App { name: "Pause/Resume".to_string(), exec_path: "internal:time:pause".to_string(), icon: Some("media-playback-pause".to_string()), is_running: false });
+                     results.push(App { name: "Stop".to_string(), exec_path: "internal:time:stop".to_string(), icon: Some("media-playback-stop".to_string()), is_running: false });
+                     results.push(App { name: "Restart".to_string(), exec_path: "internal:time:restart".to_string(), icon: Some("view-refresh".to_string()), is_running: false });
+                 }
+                 results.push(App { name: "Pomodoro".to_string(), exec_path: "internal:time:pomodoro".to_string(), icon: Some("alarm-timer".to_string()), is_running: false });
+                 results.push(App { name: "Stopwatch".to_string(), exec_path: "internal:time:stopwatch".to_string(), icon: Some("alarm-timer".to_string()), is_running: false });
+                 results.push(App { name: "Timer (e.g. 't timer 10')".to_string(), exec_path: "internal:time:help".to_string(), icon: Some("alarm-timer".to_string()), is_running: false });
+            }
+
+            return results;
         }
         
         if let Some(l_query) = query.strip_prefix("l ") {

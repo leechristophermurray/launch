@@ -92,6 +92,12 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
         .grid-item:hover {
             background-color: rgba(255, 255, 255, 0.15);
         }
+        .time-status {
+            color: #F8cfa5; /* Pastel Orange/Coral */
+            font-weight: bold;
+            font-size: 16px;
+            margin-right: 20px;
+        }
     ");
     StyleContext::add_provider_for_display(
         &gdk::Display::default().expect("Could not connect to a display."),
@@ -105,9 +111,17 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
     window.add_css_class("launcher-window");
     window.set_child(Some(&main_box));
 
+    let entry_box = gtk4::Box::new(Orientation::Horizontal, 0);
+    main_box.append(&entry_box);
+
     let entry = Entry::new();
+    entry.set_hexpand(true);
     entry.set_placeholder_text(Some("Type to launch..."));
-    main_box.append(&entry);
+    entry_box.append(&entry);
+
+    let time_label = Label::new(None);
+    time_label.add_css_class("time-status");
+    entry_box.append(&time_label);
 
     let list_box = ListBox::new();
     list_box.set_visible(false); // Hidden initially
@@ -312,6 +326,11 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
                              }
                              glib::ControlFlow::Continue
                          });
+                    } else {
+                        // Delegate other internal commands (time, window, system, macro) to executor
+                        ctx_clone_exec.execute_command.execute(&cmd);
+                        e.set_text("");
+                        window_exec.set_visible(false);
                     }
                 } else {
                     ctx_clone_exec.execute_command.execute(&cmd);
@@ -485,6 +504,20 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
     window.connect_close_request(move |win| {
         win.set_visible(false);
         gtk4::glib::Propagation::Stop
+    });
+
+    // Time Status Poller
+    let time_label_clone = time_label.clone();
+    let ctx_poller = ctx.clone();
+    gtk4::glib::timeout_add_local(std::time::Duration::from_millis(1000), move || {
+        let (text, active) = ctx_poller.omnibar.time.get_status();
+        if active {
+            time_label_clone.set_text(&text);
+            time_label_clone.set_visible(true);
+        } else {
+            time_label_clone.set_visible(false);
+        }
+        gtk4::glib::ControlFlow::Continue
     });
 
     window.present();
