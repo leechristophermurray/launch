@@ -1,5 +1,4 @@
 use crate::domain::ports::IDictionaryService;
-use webster;
 
 pub struct SmartDictionaryAdapter;
 
@@ -11,7 +10,9 @@ impl SmartDictionaryAdapter {
 
 impl IDictionaryService for SmartDictionaryAdapter {
     fn lookup(&self, term: &str) -> Option<String> {
-        // webster::dictionary returns Option<&str>
+        // Try webster offline dictionary
+        // Returns None if not found, which triggers Google search fallback in UI
         webster::dictionary(term).map(|s| s.to_string())
     }
 }
+

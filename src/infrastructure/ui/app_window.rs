@@ -35,14 +35,14 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
             background-color: transparent;
         }
         .pill-container {
-            background-color: rgba(30, 30, 30, 0.75);
+            background-color: rgba(9, 9, 9, 0.85);
             border-radius: 30px;
             padding: 10px;
             margin: 15px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
             /* Attempt backdrop blur if supported by GTK/Compositor extensions */
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(40px) saturate(180%);
+            -webkit-backdrop-filter: blur(40px) saturate(180%);
         }
         entry {
             background-color: transparent;
