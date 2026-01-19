@@ -11,6 +11,8 @@ pub struct AppSettings {
     pub macros: Vec<MacroSerde>,
     #[serde(default = "default_model")]
     pub ai_model: String,
+    #[serde(default)]
+    pub favorites: Vec<String>,
 }
 
 fn default_model() -> String {
@@ -115,5 +117,22 @@ impl SettingsStore {
     pub fn set_ai_model(&self, model: String) -> Result<(), String> {
         self.cache.lock().unwrap().ai_model = model;
         self.save()
+    }
+
+    pub fn is_favorite(&self, name: &str) -> bool {
+        self.cache.lock().unwrap().favorites.contains(&name.to_string())
+    }
+
+    pub fn toggle_favorite(&self, name: &str) -> Result<bool, String> {
+        let mut data = self.cache.lock().unwrap();
+        let is_fav = if let Some(pos) = data.favorites.iter().position(|x| x == name) {
+            data.favorites.remove(pos);
+            false
+        } else {
+            data.favorites.push(name.to_string());
+            true
+        };
+        drop(data);
+        self.save().map(|_| is_fav)
     }
 }

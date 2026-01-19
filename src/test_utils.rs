@@ -115,5 +115,6 @@ pub fn create_omnibar() -> Omnibar {
         Arc::new(MockLLM),
         Arc::new(MockIndexer),
         Arc::new(MockTimeService),
+        Arc::new(crate::infrastructure::services::settings_store::SettingsStore::new()),
     )
 }

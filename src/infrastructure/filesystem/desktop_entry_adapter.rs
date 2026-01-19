@@ -38,6 +38,7 @@ impl LinuxAppRepoAdapter {
             exec_path,
             icon,
             is_running: false, // Default state
+            is_favorite: false,
         })
     }
 }

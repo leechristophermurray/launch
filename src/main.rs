@@ -47,6 +47,7 @@ fn main() {
         llm_adapter,
         file_indexer,
         time_adapter.clone(),
+        settings_store.clone(),
     ));
     let execute_command = Arc::new(ExecuteCommand::new(command_executor, macro_adapter, omnibar.clone(), power_adapter.clone(), window_adapter, time_adapter));
 

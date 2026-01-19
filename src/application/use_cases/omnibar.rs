@@ -29,6 +29,7 @@ pub struct Omnibar {
     pub llm: Arc<dyn ILLMService + Send + Sync>,
     pub indexer: Arc<dyn IFileIndexer + Send + Sync>,
     pub time: Arc<dyn ITimeService + Send + Sync>,
+    pub settings: Arc<crate::infrastructure::services::settings_store::SettingsStore>,
 }
 
 impl Omnibar {
@@ -45,6 +46,7 @@ impl Omnibar {
         llm: Arc<dyn ILLMService + Send + Sync>,
         indexer: Arc<dyn IFileIndexer + Send + Sync>,
         time: Arc<dyn ITimeService + Send + Sync>,
+        settings: Arc<crate::infrastructure::services::settings_store::SettingsStore>,
     ) -> Self {
         Self {
             app_repo,
@@ -59,6 +61,7 @@ impl Omnibar {
             llm,
             indexer,
             time,
+            settings,
         }
     }
 
@@ -93,8 +96,19 @@ impl Omnibar {
         // 1. Top Apps (Running or Most Used - simplified to just finding apps for now)
         let mut apps = self.app_repo.find_apps();
         self.process_monitor.update_app_status(&mut apps);
-        // Sort by running state
-        apps.sort_by(|a, b| b.is_running.cmp(&a.is_running).then_with(|| a.name.cmp(&b.name)));
+        
+        // Mark favorites
+        for app in &mut apps {
+            app.is_favorite = self.settings.is_favorite(&app.name);
+        }
+
+        // Sort by Favorite -> Running -> Name
+        apps.sort_by(|a, b| {
+            b.is_favorite.cmp(&a.is_favorite)
+                .then(b.is_running.cmp(&a.is_running))
+                .then_with(|| a.name.cmp(&b.name))
+        });
+        
         // Take all apps now that we scroll
         let top_apps = apps;
 
@@ -106,15 +120,21 @@ impl Omnibar {
             if name.starts_with('.') { continue; }
             let full_path = format!("{}/{}", home.trim_end_matches('/'), name);
             if self.fs.is_dir(&full_path) {
+                let is_fav = self.settings.is_favorite(&name);
                 folders.push(App {
                     name: name.clone(),
                     exec_path: format!("nautilus \"{}\"", full_path),
                     icon: Some("folder".to_string()),
                     is_running: false,
+                    is_favorite: is_fav,
                 });
             }
         }
-        folders.sort_by(|a, b| a.name.cmp(&b.name));
+        
+        folders.sort_by(|a, b| {
+            b.is_favorite.cmp(&a.is_favorite)
+                .then_with(|| a.name.cmp(&b.name))
+        });
         let top_folders = folders.into_iter().take(8).collect();
 
         // 3. Shortcuts
@@ -124,6 +144,7 @@ impl Omnibar {
             exec_path: v,
             icon: Some("emblem-symbolic-link".to_string()),
             is_running: false,
+            is_favorite: false,
         }).collect();
         shortcut_apps.sort_by(|a, b| a.name.cmp(&b.name));
 
@@ -134,6 +155,7 @@ impl Omnibar {
             exec_path: format!("internal:macro:{}", m.name),
             icon: Some("system-run".to_string()),
             is_running: false,
+            is_favorite: false,
         }).collect();
         macro_apps.sort_by(|a, b| a.name.cmp(&b.name));
 
@@ -144,6 +166,7 @@ impl Omnibar {
                  exec_path: "internal:ai:".to_string(), // Empty prompt triggers input mode? Or just placeholder
                  icon: Some("system-search".to_string()),
                  is_running: false,
+                 is_favorite: false,
             }
         ];
         let ai_ready = true;
@@ -154,28 +177,31 @@ impl Omnibar {
                 name: "Settings".to_string(), 
                 exec_path: "internal:settings".to_string(), 
                 icon: Some("preferences-system".to_string()), 
-                is_running: false 
+                is_running: false,
+                is_favorite: false,
             },
             App { 
                 name: "About".to_string(), 
                 exec_path: "internal:about".to_string(), 
                 icon: Some("help-about".to_string()), 
-                is_running: false 
+                is_running: false,
+                is_favorite: false,
             },
             App { 
                 name: "Quit".to_string(), 
                 exec_path: "internal:quit".to_string(), 
                 icon: Some("application-exit".to_string()), 
-                is_running: false 
+                is_running: false,
+                is_favorite: false, 
             },
         ];
 
         // 7. System Items
         let system = vec![
-            App { name: "Lock".to_string(), exec_path: "internal:system:lock".to_string(), icon: Some("system-lock-screen".to_string()), is_running: false },
-            App { name: "Suspend".to_string(), exec_path: "internal:system:suspend".to_string(), icon: Some("system-suspend".to_string()), is_running: false },
-            App { name: "Reboot".to_string(), exec_path: "internal:system:reboot".to_string(), icon: Some("system-reboot".to_string()), is_running: false },
-            App { name: "Power Off".to_string(), exec_path: "internal:system:poweroff".to_string(), icon: Some("system-shutdown".to_string()), is_running: false },
+            App { name: "Lock".to_string(), exec_path: "internal:system:lock".to_string(), icon: Some("system-lock-screen".to_string()), is_running: false, is_favorite: false },
+            App { name: "Suspend".to_string(), exec_path: "internal:system:suspend".to_string(), icon: Some("system-suspend".to_string()), is_running: false, is_favorite: false },
+            App { name: "Reboot".to_string(), exec_path: "internal:system:reboot".to_string(), icon: Some("system-reboot".to_string()), is_running: false, is_favorite: false },
+            App { name: "Power Off".to_string(), exec_path: "internal:system:poweroff".to_string(), icon: Some("system-shutdown".to_string()), is_running: false, is_favorite: false },
         ];
 
         OverviewData {
@@ -195,8 +221,16 @@ impl Omnibar {
             // Default: Show running apps or top apps
             let mut apps = self.app_repo.find_apps();
             self.process_monitor.update_app_status(&mut apps);
+            
+            // Apply favorites here too? Maybe not for search results, but for default list yes.
+            for app in &mut apps {
+                app.is_favorite = self.settings.is_favorite(&app.name);
+            }
+
             apps.sort_by(|a, b| {
-                b.is_running.cmp(&a.is_running).then_with(|| a.name.cmp(&b.name))
+                b.is_favorite.cmp(&a.is_favorite)
+                .then(b.is_running.cmp(&a.is_running))
+                .then_with(|| a.name.cmp(&b.name))
             });
             return apps;
         }
@@ -219,6 +253,7 @@ impl Omnibar {
                          exec_path: format!("internal:window:{}", w.id),
                          icon: Some("preferences-system-windows".to_string()),
                          is_running: true,
+                         is_favorite: false,
                      }
                  })
                  .collect();
@@ -236,6 +271,7 @@ impl Omnibar {
                      exec_path: wrapped_cmd,
                      icon: Some("utilities-terminal".to_string()),
                      is_running: false,
+                     is_favorite: false,
                  }];
              }
              return vec![];
@@ -304,6 +340,7 @@ impl Omnibar {
                     exec_path: exec,
                     icon: Some(icon.to_string()),
                     is_running: false,
+                    is_favorite: false,
                 });
             }
              // Sort: Directories first, then alphabetical
@@ -325,6 +362,7 @@ impl Omnibar {
                      exec_path: cmd,
                      icon: Some("emblem-symbolic-link".to_string()),
                      is_running: false,
+                     is_favorite: false,
                  }];
              }
              // Show all shortcuts matching?
@@ -335,7 +373,8 @@ impl Omnibar {
                      name: format!("Shortcut: {}", k),
                      exec_path: v,
                      icon: Some("emblem-symbolic-link".to_string()),
-                     is_running: false
+                     is_running: false,
+                     is_favorite: false,
                  })
                  .collect();
         }
@@ -348,6 +387,7 @@ impl Omnibar {
                       exec_path: format!("echo \"{}\" | xclip -selection clipboard", result), // Copy to clipboard
                       icon: Some("accessories-calculator".to_string()),
                       is_running: false,
+                      is_favorite: false,
                   }];
              }
              return vec![];
@@ -371,6 +411,7 @@ impl Omnibar {
                  exec_path: exec,
                  icon: Some("accessories-dictionary".to_string()),
                  is_running: false,
+                 is_favorite: false,
              }];
         }
 
@@ -383,6 +424,7 @@ impl Omnibar {
                  exec_path: format!("internal:ai:{}", prompt),
                  icon: Some("system-search".to_string()), // Or a brain icon if available
                  is_running: false,
+                 is_favorite: false,
              }];
         }
 
@@ -397,6 +439,7 @@ impl Omnibar {
                      exec_path: format!("internal:macro:{}", name),
                      icon: Some("system-run".to_string()),
                      is_running: false,
+                     is_favorite: false,
                  }];
              }
              // Show all macros matching
@@ -407,7 +450,8 @@ impl Omnibar {
                      name: format!("Macro: {}", m.name),
                      exec_path: format!("internal:macro:{}", m.name),
                      icon: Some("system-run".to_string()),
-                     is_running: false
+                     is_running: false,
+                     is_favorite: false,
                  })
                  .collect();
         }
@@ -426,7 +470,8 @@ impl Omnibar {
                     name: format!("System: {}", a),
                     exec_path: format!("internal:system:{}", a),
                     icon: Some("system-shutdown".to_string()),
-                    is_running: false
+                    is_running: false,
+                    is_favorite: false,
                 }).collect();
         }
 
@@ -442,7 +487,8 @@ impl Omnibar {
                          name: "Stop Timer".to_string(),
                          exec_path: "internal:time:stop".to_string(),
                          icon: Some("media-playback-stop".to_string()),
-                         is_running: false
+                         is_running: false,
+                         is_favorite: false,
                      });
                 }
                 if action == "pause" || "pause".starts_with(action) || action == "resume" || "resume".starts_with(action) {
@@ -450,7 +496,8 @@ impl Omnibar {
                          name: "Pause/Resume".to_string(),
                          exec_path: "internal:time:pause".to_string(),
                          icon: Some("media-playback-pause".to_string()),
-                         is_running: false
+                         is_running: false,
+                         is_favorite: false,
                      });
                 }
                 if action == "restart" || "restart".starts_with(action) {
@@ -458,7 +505,8 @@ impl Omnibar {
                          name: "Restart".to_string(),
                          exec_path: "internal:time:restart".to_string(),
                          icon: Some("view-refresh".to_string()),
-                         is_running: false
+                         is_running: false,
+                         is_favorite: false,
                      });
                 }
             }
@@ -482,7 +530,8 @@ impl Omnibar {
                          name: format!("Start Timer: {} minutes", duration),
                          exec_path: format!("internal:time:timer:{}", duration * 60), // secs
                          icon: Some("alarm-timer".to_string()), // icon?
-                         is_running: false
+                         is_running: false,
+                         is_favorite: false,
                      });
                  }
             } else if action == "pomodoro" || "pomodoro".starts_with(action) {
@@ -490,27 +539,29 @@ impl Omnibar {
                      name: "Start Pomodoro (25m)".to_string(),
                      exec_path: "internal:time:pomodoro".to_string(),
                      icon: Some("alarm-timer".to_string()),
-                     is_running: false
+                     is_running: false,
+                     is_favorite: false,
                  });
             } else if action == "stopwatch" || "stopwatch".starts_with(action) {
                  results.push(App {
                      name: "Start Stopwatch".to_string(),
                      exec_path: "internal:time:stopwatch".to_string(),
                      icon: Some("alarm-timer".to_string()),
-                     is_running: false
+                     is_running: false,
+                     is_favorite: false,
                  });
             }
             
             // Allow just typing "t" to see options
             if action.is_empty() {
                  if is_active {
-                     results.push(App { name: "Pause/Resume".to_string(), exec_path: "internal:time:pause".to_string(), icon: Some("media-playback-pause".to_string()), is_running: false });
-                     results.push(App { name: "Stop".to_string(), exec_path: "internal:time:stop".to_string(), icon: Some("media-playback-stop".to_string()), is_running: false });
-                     results.push(App { name: "Restart".to_string(), exec_path: "internal:time:restart".to_string(), icon: Some("view-refresh".to_string()), is_running: false });
+                     results.push(App { name: "Pause/Resume".to_string(), exec_path: "internal:time:pause".to_string(), icon: Some("media-playback-pause".to_string()), is_running: false, is_favorite: false });
+                     results.push(App { name: "Stop".to_string(), exec_path: "internal:time:stop".to_string(), icon: Some("media-playback-stop".to_string()), is_running: false, is_favorite: false });
+                     results.push(App { name: "Restart".to_string(), exec_path: "internal:time:restart".to_string(), icon: Some("view-refresh".to_string()), is_running: false, is_favorite: false });
                  }
-                 results.push(App { name: "Pomodoro".to_string(), exec_path: "internal:time:pomodoro".to_string(), icon: Some("alarm-timer".to_string()), is_running: false });
-                 results.push(App { name: "Stopwatch".to_string(), exec_path: "internal:time:stopwatch".to_string(), icon: Some("alarm-timer".to_string()), is_running: false });
-                 results.push(App { name: "Timer (e.g. 't timer 10')".to_string(), exec_path: "internal:time:help".to_string(), icon: Some("alarm-timer".to_string()), is_running: false });
+                 results.push(App { name: "Pomodoro".to_string(), exec_path: "internal:time:pomodoro".to_string(), icon: Some("alarm-timer".to_string()), is_running: false, is_favorite: false });
+                 results.push(App { name: "Stopwatch".to_string(), exec_path: "internal:time:stopwatch".to_string(), icon: Some("alarm-timer".to_string()), is_running: false, is_favorite: false });
+                 results.push(App { name: "Timer (e.g. 't timer 10')".to_string(), exec_path: "internal:time:help".to_string(), icon: Some("alarm-timer".to_string()), is_running: false, is_favorite: false });
             }
 
             return results;
@@ -523,19 +574,22 @@ impl Omnibar {
                     name: "About Launch".to_string(), 
                     exec_path: "internal:about".to_string(), 
                     icon: Some("help-about".to_string()), 
-                    is_running: false 
+                    is_running: false,
+                    is_favorite: false, 
                 },
                 App { 
                     name: "Quit".to_string(), 
                     exec_path: "internal:quit".to_string(), 
                     icon: Some("application-exit".to_string()), 
-                    is_running: false 
+                    is_running: false,
+                    is_favorite: false, 
                 },
                 App { 
                     name: "Settings".to_string(), 
                     exec_path: "internal:settings".to_string(), 
                     icon: Some("preferences-system".to_string()), 
-                    is_running: false 
+                    is_running: false,
+                    is_favorite: false, 
                 },
             ];
             return items.into_iter()

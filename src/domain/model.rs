@@ -14,6 +14,7 @@ pub struct App {
     pub exec_path: String,
     pub icon: Option<String>,
     pub is_running: bool,
+    pub is_favorite: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

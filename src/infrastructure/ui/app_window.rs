@@ -1305,7 +1305,14 @@ fn show_settings_dialog(window: &ApplicationWindow, ctx: &AppContext) {
     dialog.present();
 }
 
-fn add_section_items(row_box: &gtk4::Box, items: Vec<crate::domain::model::App>, ctx: &AppContext, window: &ApplicationWindow) {
+fn add_section_items(
+    row_box: &gtk4::Box, 
+    items: Vec<crate::domain::model::App>, 
+    ctx: &AppContext, 
+    window: &ApplicationWindow,
+    entry: &Entry,
+    parent_container: &gtk4::Box
+) {
     for item in items {
         let btn = Button::new();
         btn.add_css_class("grid-item");
@@ -1324,7 +1331,13 @@ fn add_section_items(row_box: &gtk4::Box, items: Vec<crate::domain::model::App>,
             vbox.append(&img);
         }
         
-        let label = Label::new(Some(&item.name));
+        let display_name = if item.is_favorite {
+            format!("★ {}", item.name)
+        } else {
+            item.name.clone()
+        };
+
+        let label = Label::new(Some(&display_name));
         label.set_wrap(true);
         label.set_wrap_mode(gtk4::pango::WrapMode::WordChar);
         label.set_max_width_chars(12); // Approximate chars per line for 100px
@@ -1354,6 +1367,25 @@ fn add_section_items(row_box: &gtk4::Box, items: Vec<crate::domain::model::App>,
             }
         });
         
+        // Favorites Controller
+        let key_controller = gtk4::EventControllerKey::new();
+        let ctx_fav = ctx.clone();
+        let win_fav = window.clone();
+        let entry_fav = entry.clone();
+        let container_fav = parent_container.clone();
+        let name_fav = item.name.clone();
+
+        key_controller.connect_key_pressed(move |_, key, _, _| {
+            if key == gtk4::gdk::Key::space {
+                let _ = ctx_fav.settings.toggle_favorite(&name_fav);
+                // Refresh grid
+                show_overview_grid(&container_fav, &ctx_fav, &win_fav, &entry_fav);
+                return gtk4::glib::Propagation::Stop;
+            }
+            gtk4::glib::Propagation::Proceed
+        });
+        btn.add_controller(key_controller);
+
         row_box.append(&btn);
     }
 }
@@ -1394,7 +1426,7 @@ fn show_overview_grid(
         row_box.set_margin_bottom(10);
         
         // Add items
-        add_section_items(&row_box, items, ctx, window);
+        add_section_items(&row_box, items, ctx, window, entry, container);
         
         scroll.set_child(Some(&row_box));
         
