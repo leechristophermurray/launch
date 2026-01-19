@@ -17,6 +17,7 @@ A sleek, pill-shaped application launcher for Linux, built with Rust and GTK4. D
   - `Ctrl + 1-9`: Quick launch the Nth result.
   - `Escape`: Close the launcher.
 - **Overview Grid**: Press `Down` to reveal a sectioned, horizontally scrollable grid of your apps, folders, shortcuts, and more.
+- **Favorites System**: Pin your most used apps and folders to the top of the list by pressing `Space`.
 - **Status Indicators**: Highlights running applications with a blue notification dot.
 
 ## Usage
@@ -120,6 +121,11 @@ When the search bar is empty, press `Down` to open the Overview Grid. This view 
 **Navigation**:
 - `Up` / `Down`: Jump between sections.
 - `Left` / `Right`: Scroll through items within a section.
+
+**Favoriting**:
+- Navigate to any item (App or Folder).
+- Press `Space` to toggle **Favorite** status.
+- Favorites are marked with `★` and always appear at the start of the list.
 
 ## Tech Stack
 
