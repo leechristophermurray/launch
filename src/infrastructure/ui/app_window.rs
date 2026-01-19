@@ -59,10 +59,10 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
         }
         .running-app {
             font-weight: bold;
-            color: #aaddff;
+            color: #8cd1ffff;
         }
         .running-dot {
-            background-color: #aaddff;
+            background-color: #8cd1ffff;
             border-radius: 5px;
             min-width: 8px;
             min-height: 8px;
@@ -82,7 +82,7 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
             font-size: 14px;
             margin-top: 10px;
             margin-bottom: 5px;
-            color: #888888;
+            color: #a1a1a1ff;
         }
         .grid-item {
             padding: 10px;
@@ -94,7 +94,7 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
             background-color: rgba(255, 255, 255, 0.15);
         }
         .time-status {
-            color: #F8cfa5; /* Pastel Orange/Coral */
+            color: #ff6161ff; /* Pastel Orange/Coral */
             font-weight: bold;
             font-size: 16px;
             margin-right: 20px;
@@ -489,15 +489,9 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
 
     // Auto-exit on focus loss
     // Only close if the application doesn't have ANY active window (handling modals)
-    let app_weak = window.application().expect("Window must have app").downgrade();
     window.connect_is_active_notify(move |win| {
         if !win.is_active() {
-            if let Some(app) = app_weak.upgrade() {
-                // If no window in our app is active, user clicked away -> Close
-                if app.active_window().is_none() {
-                    win.set_visible(false); 
-                }
-            }
+             win.set_visible(false);
         }
     });
 
