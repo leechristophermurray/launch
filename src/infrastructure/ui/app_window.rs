@@ -516,6 +516,14 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
     });
 
     window.present();
+
+    let scroll_win = overview_scroll.clone();
+    let entry_win = entry.clone();
+    window.connect_show(move |_| {
+         scroll_win.set_visible(false);
+         entry_win.set_text("");
+         entry_win.grab_focus();
+    });
 }
 
 fn show_error_dialog(parent: &gtk4::Window, message: &str) {
@@ -1394,55 +1402,85 @@ fn show_overview_grid(
         let controller = gtk4::EventControllerKey::new();
         let entry_weak_inner = entry_weak.clone();
 
-        controller.connect_key_pressed(move |ctrl, key, _, _| {
+        controller.connect_key_pressed(move |ctrl, key, _, state| {
             let widget = ctrl.widget().expect("Controller should be attached to widget");
-            // widget is row_box
-            let row_box = widget.downcast::<gtk4::Box>().unwrap();
+            let row_box = widget.downcast::<gtk4::Box>().expect("Widget must be Box");
+
+            // Type-to-Filter Logic
+            // If key is printable and no modifiers (except Shift), send to entry
+            let is_control = state.contains(gtk4::gdk::ModifierType::CONTROL_MASK) 
+                          || state.contains(gtk4::gdk::ModifierType::ALT_MASK) 
+                          || state.contains(gtk4::gdk::ModifierType::META_MASK);
             
-            // NOTE: Left/Right is handled natively by container focus if items are buttons?
-            // Actually GTK Box navigation uses Tab usually. 
-            // We might need to handle Left/Right if default doesn't work well.
-            // But let's verify Up/Down first.
+            if !is_control {
+                if let Some(c) = key.to_unicode() {
+                    if !c.is_control() {
+                         // Focus Entry and Type
+                         if let Some(entry) = entry_weak_inner.upgrade() {
+                             entry.grab_focus();
+                             // Append char
+                             let mut text = entry.text().to_string();
+                             text.push(c);
+                             entry.set_text(&text);
+                             entry.set_position(-1);
+                             return gtk4::glib::Propagation::Stop;
+                         }
+                    }
+                }
+                // Handle Backspace explicitly if we want "Delete to filter"
+                if key == gtk4::gdk::Key::BackSpace {
+                     if let Some(entry) = entry_weak_inner.upgrade() {
+                         entry.grab_focus();
+                         // Entry handles backspace naturally if focused, but we just focused it.
+                         // It might not delete current char because event is consumed?
+                         // Actually, we are just grabbing focus. Propagation Stop?
+                         // If we Stop, backspace doesn't happen in Entry.
+                         // But we want to 'Resume' typing in entry.
+                         // Simplest: Just focus entry, let user press backspace again? 
+                         // Better: Focus entry, set position -1.
+                         return gtk4::glib::Propagation::Stop; 
+                     }
+                }
+            }
 
+            // Navigation Logic
+            // Helper to find parent ScrolledWindow
+            let find_scrolled_window = |start_widget: &gtk4::Widget| -> Option<ScrolledWindow> {
+                let mut curr = start_widget.parent();
+                while let Some(ancestor) = curr {
+                    if let Ok(sw) = ancestor.clone().downcast::<ScrolledWindow>() {
+                        return Some(sw);
+                    }
+                    curr = ancestor.parent();
+                }
+                None
+            };
+            
             if key == gtk4::gdk::Key::Up {
-                // Focus: 
-                // 1. Find ScrolledWindow parent of this box
-                // 2. Find Label sibling before ScrolledWindow
-                // 3. Find ScrolledWindow before Label?
-                
-                if let Some(scroll_parent) = row_box.parent() { // ScrolledWindow
-                     if let Some(prev_lbl) = scroll_parent.prev_sibling() { // Label
-                         if let Some(prev_scroll_widget) = prev_lbl.prev_sibling() { // ScrolledWindow
-                             if let Ok(prev_scroll) = prev_scroll_widget.downcast::<ScrolledWindow>() {
-                                 if let Some(child_widget) = prev_scroll.child() {
-                                     // child_widget is the viewport or the box? 
-                                     // Usually viewport if using adjustments, but here we set_child box directly
-                                     // Let's assume it's the Box (or Viewport -> Box). 
-                                     // If ScrolledWindow wraps it in a Viewport automatically...
-                                     
-                                     // The built child is direct if we use set_child (GTK4).
-                                     // Let's try casting to Box.
-                                     
-                                     let target_box = if let Ok(b) = child_widget.clone().downcast::<gtk4::Box>() {
-                                         b 
-                                     } else if let Ok(vp) = child_widget.downcast::<gtk4::Viewport>() {
-                                          if let Some(vp_child) = vp.child() {
-                                              if let Ok(b) = vp_child.downcast::<gtk4::Box>() { b } else { return gtk4::glib::Propagation::Proceed; }
-                                          } else { return gtk4::glib::Propagation::Proceed; }
-                                     } else {
-                                         return gtk4::glib::Propagation::Proceed;
-                                     };
+                if let Some(scroll_parent) = find_scrolled_window(row_box.upcast_ref()) {
+                     // Scan backwards
+                     let mut curr = scroll_parent.prev_sibling();
+                     while let Some(prev) = curr {
+                         if let Ok(prev_scroll) = prev.clone().downcast::<ScrolledWindow>() {
+                             // Found previous row -> Focus its content
+                             if let Some(child_widget) = prev_scroll.child() {
+                                  let target = if let Ok(b) = child_widget.clone().downcast::<gtk4::Box>() { Some(b) }
+                                  else if let Ok(vp) = child_widget.downcast::<gtk4::Viewport>() {
+                                      if let Some(vpc) = vp.child() { vpc.downcast::<gtk4::Box>().ok() } else { None }
+                                  } else { None };
 
-                                     // Focus first child of target box
-                                     if let Some(first) = target_box.first_child() {
-                                         first.grab_focus();
-                                         return gtk4::glib::Propagation::Stop;
-                                     }
-                                 }
+                                  if let Some(target_box) = target {
+                                      if let Some(first) = target_box.first_child() {
+                                          first.grab_focus();
+                                          return gtk4::glib::Propagation::Stop;
+                                      }
+                                  }
                              }
                          }
+                         curr = prev.prev_sibling();
                      }
-                     // Top of list? -> Focus Entry
+                     
+                     // If we exhausted siblings, we are at top -> Focus Entry
                      if let Some(entry) = entry_weak_inner.upgrade() {
                          entry.grab_focus();
                          entry.set_position(-1);
@@ -1450,31 +1488,29 @@ fn show_overview_grid(
                      }
                 }
             } else if key == gtk4::gdk::Key::Down {
-                if let Some(scroll_parent) = row_box.parent() { 
-                     if let Some(next_lbl) = scroll_parent.next_sibling() { // Label
-                         if let Some(next_scroll_widget) = next_lbl.next_sibling() { // ScrolledWindow
-                             // Focus it
-                             if let Ok(next_scroll) = next_scroll_widget.downcast::<ScrolledWindow>() {
-                                 if let Some(child_widget) = next_scroll.child() {
-                                     let target_box = if let Ok(b) = child_widget.clone().downcast::<gtk4::Box>() {
-                                         b 
-                                     } else if let Ok(vp) = child_widget.downcast::<gtk4::Viewport>() {
-                                          if let Some(vp_child) = vp.child() {
-                                              if let Ok(b) = vp_child.downcast::<gtk4::Box>() { b } else { return gtk4::glib::Propagation::Proceed; }
-                                          } else { return gtk4::glib::Propagation::Proceed; }
-                                     } else {
-                                         return gtk4::glib::Propagation::Proceed;
-                                     };
+                if let Some(scroll_parent) = find_scrolled_window(row_box.upcast_ref()) {
+                     // Scan forwards
+                     let mut curr = scroll_parent.next_sibling();
+                     while let Some(next) = curr {
+                         if let Ok(next_scroll) = next.clone().downcast::<ScrolledWindow>() {
+                             if let Some(child_widget) = next_scroll.child() {
+                                 let target = if let Ok(b) = child_widget.clone().downcast::<gtk4::Box>() { Some(b) }
+                                  else if let Ok(vp) = child_widget.downcast::<gtk4::Viewport>() {
+                                      if let Some(vpc) = vp.child() { vpc.downcast::<gtk4::Box>().ok() } else { None }
+                                  } else { None };
 
-                                     if let Some(first) = target_box.first_child() {
-                                         first.grab_focus();
-                                         return gtk4::glib::Propagation::Stop;
-                                     }
-                                 }
+                                  if let Some(target_box) = target {
+                                      if let Some(first) = target_box.first_child() {
+                                          first.grab_focus();
+                                          return gtk4::glib::Propagation::Stop;
+                                      }
+                                  }
                              }
                          }
+                         curr = next.next_sibling();
                      }
                 }
+                return gtk4::glib::Propagation::Stop; 
             }
             
             gtk4::glib::Propagation::Proceed
