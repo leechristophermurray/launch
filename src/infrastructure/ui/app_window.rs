@@ -130,7 +130,7 @@ pub fn build_ui(app: &Application, ctx: AppContext) {
 
     // Overview Grid (Zero State)
     let overview_scroll = ScrolledWindow::builder()
-        .min_content_height(400)
+        .min_content_height(500)
         .hscrollbar_policy(gtk4::PolicyType::Never)
         .visible(false)
         .build();
